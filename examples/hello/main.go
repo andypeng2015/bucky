@@ -100,7 +100,7 @@ func loadWAV16kMono(path string) ([]float32, error) {
 
 	for !dataFound {
 		var sub struct {
-			Id   [4]byte
+			ID   [4]byte
 			Size uint32
 		}
 		if err := binary.Read(f, binary.LittleEndian, &sub); err != nil {
@@ -109,7 +109,7 @@ func loadWAV16kMono(path string) ([]float32, error) {
 			}
 			return nil, err
 		}
-		switch string(sub.Id[:]) {
+		switch string(sub.ID[:]) {
 		case "fmt ":
 			var fmtChunk struct {
 				AudioFormat   uint16
