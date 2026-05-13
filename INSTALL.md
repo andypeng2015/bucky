@@ -73,4 +73,4 @@ cp build/ggml/src/libggml*.so ../bucky/lib/
 Future versions of bucky may publish our own Linux bundles via a
 `bucky-builder` companion repo (mirroring how
 [`hybridgroup/llama-cpp-builder`](https://github.com/hybridgroup/llama-cpp-builder)
-backs yzma); see `PLAN.md` parking lot.
+backs yzma).

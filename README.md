@@ -23,7 +23,7 @@ $ bucky model get tiny
 $ bucky whisper transcribe -m ~/models/ggml-tiny.bin samples/jfk.wav
 ```
 
-Read the [PLAN.md](./PLAN.md) and [INSTALL.md](./INSTALL.md) to learn more about the project layout and per-OS install notes.
+Read [INSTALL.md](./INSTALL.md) for per-OS install notes and [MODELS.md](./MODELS.md) for the recommended whisper model set.
 
 ## Project Status
 
@@ -42,7 +42,7 @@ Sometimes there are breaking changes to whisper.cpp that require an update to bu
 | ----------- | ------ |
 | v1.8.4      | 0.1.x  |
 
-Status of the work in progress is tracked in [PLAN.md](./PLAN.md). PRs #1–#4 (foundation, core FFI binding, audio decoding + per-token API, VAD/state/word-timing/bench) have all landed; PR #5 (Kronk integration) is the next milestone.
+The core FFI binding (model loading, `whisper_full`, segments + tokens, VAD, state, language, bench helpers), audio decoding (WAV/MP3/FLAC), CLI (`install`, `system`, `model get|info|list`, `whisper transcribe`), and examples (`hello`, `transcribe`, `translate`, `segments`, `words`, `streaming`) have all landed. Kronk integration (an OpenAI-compatible `POST /v1/audio/transcriptions` endpoint) lives in the [kronk](https://github.com/ardanlabs/kronk) repo.
 
 ## Owner Information
 
