@@ -22,6 +22,14 @@ const (
 // 32-bit IEEE float. Other encodings (A-law, mu-law, ADPCM, etc.) return
 // an error.
 func DecodeWAV(r io.Reader) ([]float32, int, int, error) {
+	return DecodeWAVInto(nil, r)
+}
+
+// DecodeWAVInto is the buffer-reusing form of DecodeWAV. When dst has
+// enough capacity for all decoded samples, the returned slice shares dst's
+// backing array and no []float32 allocation happens. See audio.DecodeInto
+// for usage. dst may be nil.
+func DecodeWAVInto(dst []float32, r io.Reader) ([]float32, int, int, error) {
 	var hdr struct {
 		Riff      [4]byte
 		ChunkSize uint32
@@ -34,7 +42,7 @@ func DecodeWAV(r io.Reader) ([]float32, int, int, error) {
 		return nil, 0, 0, errors.New("audio: not a RIFF/WAVE file")
 	}
 
-	var info wavInfo
+	info := wavInfo{dst: dst}
 	for {
 		var sub struct {
 			Id   [4]byte
@@ -62,13 +70,16 @@ func DecodeWAV(r io.Reader) ([]float32, int, int, error) {
 }
 
 // wavInfo accumulates parsed fmt and data chunk results across the chunk
-// scan loop in DecodeWAV.
+// scan loop in DecodeWAV. dst is the caller-supplied output buffer
+// (possibly nil); samples is the final result, which shares dst's backing
+// array when dst has enough capacity.
 type wavInfo struct {
 	fmtFound      bool
 	audioFormat   uint16
 	channels      uint16
 	sampleRate    uint32
 	bitsPerSample uint16
+	dst           []float32
 	samples       []float32
 }
 
@@ -126,7 +137,7 @@ func readWAVData(r io.Reader, size uint32, info *wavInfo) (bool, error) {
 	if _, err := io.ReadFull(r, data); err != nil {
 		return false, err
 	}
-	s, err := decodeWAVData(data, info.audioFormat, info.bitsPerSample)
+	s, err := decodeWAVData(info.dst, data, info.audioFormat, info.bitsPerSample)
 	if err != nil {
 		return false, err
 	}
@@ -157,13 +168,15 @@ func skipWAVChunk(r io.Reader, size uint32) error {
 }
 
 // decodeWAVData converts the raw bytes of a WAV "data" chunk into float32
-// samples in [-1, 1].
-func decodeWAVData(data []byte, audioFormat, bitsPerSample uint16) ([]float32, error) {
+// samples in [-1, 1]. The result is written into dst's backing array when
+// dst has enough capacity; otherwise a fresh slice is allocated. Pass
+// dst=nil to always allocate.
+func decodeWAVData(dst []float32, data []byte, audioFormat, bitsPerSample uint16) ([]float32, error) {
 	switch audioFormat {
 	case wavFormatPCM:
 		switch bitsPerSample {
 		case 8:
-			out := make([]float32, len(data))
+			out := wavOutputBuf(dst, len(data))
 			for i, b := range data {
 				// 8-bit PCM is unsigned with center at 128.
 				out[i] = (float32(int(b) - 128)) / 128.0
@@ -171,7 +184,7 @@ func decodeWAVData(data []byte, audioFormat, bitsPerSample uint16) ([]float32, e
 			return out, nil
 		case 16:
 			n := len(data) / 2
-			out := make([]float32, n)
+			out := wavOutputBuf(dst, n)
 			for i := 0; i < n; i++ {
 				v := int16(binary.LittleEndian.Uint16(data[i*2:]))
 				out[i] = float32(v) / 32768.0
@@ -179,7 +192,7 @@ func decodeWAVData(data []byte, audioFormat, bitsPerSample uint16) ([]float32, e
 			return out, nil
 		case 24:
 			n := len(data) / 3
-			out := make([]float32, n)
+			out := wavOutputBuf(dst, n)
 			for i := 0; i < n; i++ {
 				b0 := uint32(data[i*3])
 				b1 := uint32(data[i*3+1])
@@ -193,7 +206,7 @@ func decodeWAVData(data []byte, audioFormat, bitsPerSample uint16) ([]float32, e
 			return out, nil
 		case 32:
 			n := len(data) / 4
-			out := make([]float32, n)
+			out := wavOutputBuf(dst, n)
 			for i := 0; i < n; i++ {
 				v := int32(binary.LittleEndian.Uint32(data[i*4:]))
 				out[i] = float32(v) / 2147483648.0
@@ -203,7 +216,7 @@ func decodeWAVData(data []byte, audioFormat, bitsPerSample uint16) ([]float32, e
 	case wavFormatIEEEFloat:
 		if bitsPerSample == 32 {
 			n := len(data) / 4
-			out := make([]float32, n)
+			out := wavOutputBuf(dst, n)
 			for i := 0; i < n; i++ {
 				bits := binary.LittleEndian.Uint32(data[i*4:])
 				out[i] = math.Float32frombits(bits)
@@ -212,4 +225,15 @@ func decodeWAVData(data []byte, audioFormat, bitsPerSample uint16) ([]float32, e
 		}
 	}
 	return nil, fmt.Errorf("audio: unsupported WAV encoding format=%d bps=%d", audioFormat, bitsPerSample)
+}
+
+// wavOutputBuf returns a length-n []float32 backed by dst when dst has
+// enough capacity, or a freshly allocated slice otherwise. Lets the
+// per-format decode loops avoid the per-call allocation when the caller
+// supplied a reusable buffer through DecodeInto / DecodeWAVInto.
+func wavOutputBuf(dst []float32, n int) []float32 {
+	if cap(dst) >= n {
+		return dst[:n]
+	}
+	return make([]float32, n)
 }

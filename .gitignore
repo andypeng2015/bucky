@@ -31,6 +31,10 @@ go.work.sum
 /bucky
 /lib/
 
+# pprof artifacts captured by `make profile-*`
+/profiles/
+*.prof
+
 # Editor/IDE
 # .idea/
 # .vscode/

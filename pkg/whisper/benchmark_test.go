@@ -78,6 +78,7 @@ func BenchmarkFullJFK(b *testing.B) {
 		b.Fatalf("Full (warmup): %v", err)
 	}
 
+	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		if err := Full(ctx, mkParams(), samples); err != nil {
