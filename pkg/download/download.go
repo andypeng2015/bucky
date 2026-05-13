@@ -26,6 +26,14 @@ var (
 	ErrUnsupportedPlatform = errors.New("no prebuilt whisper.cpp asset for this platform")
 )
 
+// DefaultWhisperVersion is the well-known whisper.cpp release tag bucky's
+// FFI struct mirrors (e.g. WhisperFullParams's 304-byte layout) are tested
+// against. `bucky install` uses this when no -v flag is supplied so first
+// installs and CI runs do not depend on the GitHub releases API. Bumping
+// this value is a deliberate, reviewable change that should be paired with
+// re-running the FFI sizeof + by-ref/by-value tests in pkg/whisper.
+const DefaultWhisperVersion = "v1.8.4"
+
 var (
 	// RetryCount is how many times the package will retry to obtain the latest whisper.cpp version.
 	RetryCount = 3

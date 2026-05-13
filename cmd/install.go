@@ -18,7 +18,7 @@ var InstallCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:    "version",
 			Aliases: []string{"v"},
-			Usage:   "version of whisper.cpp to install (e.g. v1.8.4; leave empty for latest)",
+			Usage:   "version of whisper.cpp to install (e.g. v1.8.4; default is the bucky-pinned version, pass \"latest\" to query the GitHub releases API)",
 			Value:   "",
 		},
 		&cli.StringFlag{
@@ -74,7 +74,12 @@ func runInstall(c *cli.Context) error {
 		}
 	}
 
-	if version == "" {
+	switch version {
+	case "":
+		// Use the bucky-pinned default. Avoids hitting the GitHub
+		// releases API for first installs and CI runs.
+		version = download.DefaultWhisperVersion
+	case "latest":
 		var err error
 		version, err = download.WhisperLatestVersion()
 		if err != nil {
