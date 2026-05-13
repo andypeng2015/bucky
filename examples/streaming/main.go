@@ -1,0 +1,145 @@
+// streaming demonstrates pseudo-streaming transcription by sliding a
+// fixed-size window across the input audio. Each window is decoded with
+// whisper.Full, and the tail of the previous window's tokens is fed back as
+// PromptTokens so the next window has linguistic context.
+//
+// Real real-time streaming is application-specific (microphone capture, VAD
+// gating, push notifications); this example focuses on the FFI boundary —
+// how to safely hand a Go []int32 to whisper.cpp via PromptTokens without
+// the GC pulling the rug out from under it.
+//
+// Usage:
+//
+//	BUCKY_LIB=./lib BUCKY_TEST_MODEL=$HOME/models/ggml-tiny.bin \
+//	    go run ./examples/streaming samples/jfk.wav
+package main
+
+import (
+	"flag"
+	"fmt"
+	"log"
+	"os"
+	"runtime"
+	"strings"
+	"unsafe"
+
+	"github.com/ardanlabs/bucky/pkg/audio"
+	"github.com/ardanlabs/bucky/pkg/whisper"
+)
+
+func main() {
+	var (
+		windowSec  = flag.Float64("window", 10.0, "decode window size in seconds (5-10 typical)")
+		overlapSec = flag.Float64("overlap", 1.0, "overlap between consecutive windows in seconds")
+		nPromptTok = flag.Int("prompt-tokens", 64, "max tail tokens to carry into the next window")
+		threads    = flag.Int("threads", 4, "number of CPU threads")
+	)
+	flag.Parse()
+	if flag.NArg() < 1 {
+		log.Fatalf("usage: %s [flags] <audio-file>", os.Args[0])
+	}
+	audioPath := flag.Arg(0)
+
+	libPath := os.Getenv("BUCKY_LIB")
+	if libPath == "" {
+		log.Fatal("BUCKY_LIB must point to the directory containing libwhisper")
+	}
+	modelPath := os.Getenv("BUCKY_TEST_MODEL")
+	if modelPath == "" {
+		log.Fatal("BUCKY_TEST_MODEL must point to a GGML whisper model")
+	}
+
+	if err := whisper.Load(libPath); err != nil {
+		log.Fatalf("whisper.Load: %v", err)
+	}
+
+	cparams := whisper.ContextDefaultParams()
+	ctx, err := whisper.InitFromFileWithParams(modelPath, cparams)
+	if err != nil {
+		log.Fatalf("InitFromFileWithParams: %v", err)
+	}
+	defer whisper.Free(ctx)
+
+	f, err := os.Open(audioPath)
+	if err != nil {
+		log.Fatalf("open %s: %v", audioPath, err)
+	}
+	defer f.Close()
+	samples, err := audio.Decode(f)
+	if err != nil {
+		log.Fatalf("audio.Decode: %v", err)
+	}
+
+	winSamples := int(*windowSec * float64(whisper.SampleRate))
+	overSamples := int(*overlapSec * float64(whisper.SampleRate))
+	if overSamples >= winSamples {
+		log.Fatalf("overlap (%ds) must be smaller than window (%ds)", int(*overlapSec), int(*windowSec))
+	}
+	step := winSamples - overSamples
+
+	var (
+		out         strings.Builder
+		promptToks  []int32 // tail tokens from the previous window
+		windowIndex int
+	)
+
+	for start := 0; start < len(samples); start += step {
+		end := start + winSamples
+		if end > len(samples) {
+			end = len(samples)
+		}
+		chunk := samples[start:end]
+
+		wparams := whisper.FullDefaultParams(whisper.SamplingGreedy)
+		wparams.NThreads = int32(*threads)
+		wparams.PrintProgress = 0
+		wparams.PrintRealtime = 0
+		wparams.PrintTimestamps = 0
+		wparams.NoTimestamps = 1
+		wparams.SingleSegment = 1
+		wparams.NoContext = 1 // we manage context explicitly via PromptTokens
+
+		// Hand the previous window's tail tokens to whisper.cpp as a
+		// const whisper_token *. The slice's backing array must remain
+		// reachable for the duration of the Full call, which is
+		// guaranteed by the runtime.KeepAlive at the bottom of this
+		// iteration. NoContext=1 above ensures whisper does not also
+		// prepend its own previous-segment context.
+		if len(promptToks) > 0 {
+			wparams.PromptTokens = uintptr(unsafe.Pointer(unsafe.SliceData(promptToks)))
+			wparams.PromptNTokens = int32(len(promptToks))
+		}
+
+		if err := whisper.Full(ctx, wparams, chunk); err != nil {
+			log.Fatalf("Full window %d: %v", windowIndex, err)
+		}
+
+		// Collect this window's text and tail tokens for the next pass.
+		var nextPrompt []int32
+		for i := int32(0); i < whisper.FullNSegments(ctx); i++ {
+			out.WriteString(whisper.FullGetSegmentText(ctx, i))
+			for j := int32(0); j < whisper.FullNTokens(ctx, i); j++ {
+				id := whisper.FullGetTokenID(ctx, i, j)
+				if id == whisper.TokenNull {
+					continue
+				}
+				nextPrompt = append(nextPrompt, int32(id))
+			}
+		}
+		if len(nextPrompt) > *nPromptTok {
+			nextPrompt = nextPrompt[len(nextPrompt)-*nPromptTok:]
+		}
+
+		// Keep promptToks (used by *this* iteration's Full call) alive
+		// until after Full returns, then rotate.
+		runtime.KeepAlive(promptToks)
+		promptToks = nextPrompt
+		windowIndex++
+
+		if end == len(samples) {
+			break
+		}
+	}
+
+	fmt.Println(strings.TrimSpace(out.String()))
+}

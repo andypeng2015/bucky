@@ -67,7 +67,7 @@ type WhisperFullParams struct {
 	_pad6          [1]byte
 
 	Temperature    float32 // 116..120
-	MaxInitialTs   float32 // 120..124
+	MaxInitialTS   float32 // 120..124
 	LengthPenalty  float32 // 124..128
 	TemperatureInc float32 // 128..132
 	EntropyThold   float32 // 132..136

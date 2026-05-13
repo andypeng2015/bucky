@@ -15,6 +15,14 @@ var (
 	//                        const float * samples,
 	//                                int   n_samples);
 	fullFunc ffi.Fun
+
+	// WHISPER_API int whisper_full_parallel(
+	//             struct whisper_context * ctx,
+	//         struct whisper_full_params   params,
+	//                        const float * samples,
+	//                                int   n_samples,
+	//                                int   n_processors);
+	fullParallelFunc ffi.Fun
 )
 
 func loadFullFuncs(lib ffi.Lib) error {
@@ -28,6 +36,17 @@ func loadFullFuncs(lib ffi.Lib) error {
 		&ffi.TypeSint32,
 	); err != nil {
 		return loadError("whisper_full", err)
+	}
+
+	if fullParallelFunc, err = lib.Prep("whisper_full_parallel",
+		&ffi.TypeSint32,
+		&ffi.TypePointer,
+		&ffiTypeFullParams,
+		&ffi.TypePointer,
+		&ffi.TypeSint32,
+		&ffi.TypeSint32,
+	); err != nil {
+		return loadError("whisper_full_parallel", err)
 	}
 
 	return nil
@@ -60,6 +79,39 @@ func Full(ctx Context, params WhisperFullParams, samples []float32) error {
 
 	if rc := int32(result); rc != 0 {
 		return fmt.Errorf("whisper_full returned %d", rc)
+	}
+	return nil
+}
+
+// FullParallel splits the input audio into nProcessors chunks and processes
+// each in parallel using whisper_full_with_state internally. Faster on long
+// clips at some cost in transcription accuracy at chunk boundaries.
+func FullParallel(ctx Context, params WhisperFullParams, samples []float32, nProcessors int32) error {
+	if ctx == 0 {
+		return errors.New("whisper.FullParallel: nil context")
+	}
+	if len(samples) == 0 {
+		return errors.New("whisper.FullParallel: empty samples")
+	}
+	if nProcessors < 1 {
+		nProcessors = 1
+	}
+
+	samplesPtr := unsafe.Pointer(unsafe.SliceData(samples))
+	nSamples := int32(len(samples))
+
+	var result ffi.Arg
+	fullParallelFunc.Call(
+		unsafe.Pointer(&result),
+		unsafe.Pointer(&ctx),
+		unsafe.Pointer(&params),
+		unsafe.Pointer(&samplesPtr),
+		unsafe.Pointer(&nSamples),
+		unsafe.Pointer(&nProcessors),
+	)
+
+	if rc := int32(result); rc != 0 {
+		return fmt.Errorf("whisper_full_parallel returned %d", rc)
 	}
 	return nil
 }

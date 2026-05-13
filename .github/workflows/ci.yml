@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    name: build (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: gofmt -s
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          out=$(gofmt -s -d .)
+          if [ -n "$out" ]; then
+            echo "::error::gofmt -s reported diffs:"
+            echo "$out"
+            exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: install staticcheck
+        run: go install honnef.co/go/tools/cmd/staticcheck@latest
+
+      - name: staticcheck
+        shell: bash
+        run: |
+          export PATH="$(go env GOPATH)/bin:$PATH"
+          staticcheck ./...
+
+      - name: go build
+        run: go build ./...
+
+      # Tests are env-gated on BUCKY_LIB / BUCKY_TEST_MODEL / BUCKY_TEST_AUDIO.
+      # Without those vars, the whisper FFI tests cleanly skip — we still run
+      # `go test ./...` to exercise pkg/audio, pkg/loader, pkg/download, etc.
+      - name: go test
+        run: go test -count=1 ./...

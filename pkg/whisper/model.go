@@ -9,6 +9,12 @@ import (
 	"github.com/jupiterrider/ffi"
 )
 
+// TODO(PR #4 followup): expose whisper_init_from_buffer_with_params and the
+// _no_state variants (whisper_init_from_file_with_params_no_state, etc.) when
+// a downstream caller asks. Today bucky always loads from a file path and
+// always allocates the default state via whisper_init_from_file_with_params,
+// so these are deferred.
+
 var (
 	// WHISPER_API struct whisper_context * whisper_init_from_file_with_params(
 	//                              const char * path_model,

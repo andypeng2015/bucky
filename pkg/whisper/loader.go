@@ -52,7 +52,23 @@ func Load(path string) error {
 		return err
 	}
 
+	if err := loadTokensFuncs(lib); err != nil {
+		return err
+	}
+
 	if err := loadLangFuncs(lib); err != nil {
+		return err
+	}
+
+	if err := loadStateFuncs(lib); err != nil {
+		return err
+	}
+
+	if err := loadVadFuncs(lib); err != nil {
+		return err
+	}
+
+	if err := loadBenchFuncs(lib); err != nil {
 		return err
 	}
 

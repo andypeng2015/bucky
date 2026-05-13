@@ -62,7 +62,7 @@ func TestWhisperFullParamsSize(t *testing.T) {
 		{"AudioCtx", cParams.AudioCtx, byVal.AudioCtx},
 		{"PromptNTokens", cParams.PromptNTokens, byVal.PromptNTokens},
 		{"Temperature", cParams.Temperature, byVal.Temperature},
-		{"MaxInitialTs", cParams.MaxInitialTs, byVal.MaxInitialTs},
+		{"MaxInitialTs", cParams.MaxInitialTS, byVal.MaxInitialTS},
 		{"LengthPenalty", cParams.LengthPenalty, byVal.LengthPenalty},
 		{"TemperatureInc", cParams.TemperatureInc, byVal.TemperatureInc},
 		{"EntropyThold", cParams.EntropyThold, byVal.EntropyThold},

@@ -26,6 +26,7 @@ func buildCommands() []*cli.Command {
 	return []*cli.Command{
 		cmd.InstallCmd,
 		cmd.SystemCmd,
+		cmd.WhisperCmd,
 		versionCmd,
 		infoCmd,
 	}
@@ -35,11 +36,11 @@ var versionCmd = &cli.Command{
 	Name:  "version",
 	Usage: "Show bucky version",
 	Action: func(c *cli.Context) error {
-		return runShowVersion(c)
+		return runShowVersion()
 	},
 }
 
-func runShowVersion(c *cli.Context) error {
+func runShowVersion() error {
 	return showBuckyVersion()
 }
 

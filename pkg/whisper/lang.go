@@ -9,23 +9,30 @@ import (
 
 var (
 	// WHISPER_API int whisper_lang_max_id(void);
-	langMaxIdFunc ffi.Fun
+	langMaxIDFunc ffi.Fun
 
 	// WHISPER_API int whisper_lang_id(const char * lang);
-	langIdFunc ffi.Fun
+	langIDFunc ffi.Fun
 
 	// WHISPER_API const char * whisper_lang_str(int id);
 	langStrFunc ffi.Fun
+
+	// WHISPER_API int whisper_lang_auto_detect(
+	//             struct whisper_context * ctx,
+	//                                int   offset_ms,
+	//                                int   n_threads,
+	//                              float * lang_probs);
+	langAutoDetectFunc ffi.Fun
 )
 
 func loadLangFuncs(lib ffi.Lib) error {
 	var err error
 
-	if langMaxIdFunc, err = lib.Prep("whisper_lang_max_id", &ffi.TypeSint32); err != nil {
+	if langMaxIDFunc, err = lib.Prep("whisper_lang_max_id", &ffi.TypeSint32); err != nil {
 		return loadError("whisper_lang_max_id", err)
 	}
 
-	if langIdFunc, err = lib.Prep("whisper_lang_id", &ffi.TypeSint32, &ffi.TypePointer); err != nil {
+	if langIDFunc, err = lib.Prep("whisper_lang_id", &ffi.TypeSint32, &ffi.TypePointer); err != nil {
 		return loadError("whisper_lang_id", err)
 	}
 
@@ -33,25 +40,31 @@ func loadLangFuncs(lib ffi.Lib) error {
 		return loadError("whisper_lang_str", err)
 	}
 
+	if langAutoDetectFunc, err = lib.Prep("whisper_lang_auto_detect",
+		&ffi.TypeSint32, &ffi.TypePointer, &ffi.TypeSint32, &ffi.TypeSint32, &ffi.TypePointer,
+	); err != nil {
+		return loadError("whisper_lang_auto_detect", err)
+	}
+
 	return nil
 }
 
-// LangMaxId returns the largest language id (i.e. number of languages - 1).
-func LangMaxId() int32 {
+// LangMaxID returns the largest language id (i.e. number of languages - 1).
+func LangMaxID() int32 {
 	var result ffi.Arg
-	langMaxIdFunc.Call(unsafe.Pointer(&result))
+	langMaxIDFunc.Call(unsafe.Pointer(&result))
 	return int32(result)
 }
 
-// LangId returns the id of the specified language code (e.g. "de" -> 2),
+// LangID returns the id of the specified language code (e.g. "de" -> 2),
 // or -1 if the language is unknown.
-func LangId(lang string) int32 {
+func LangID(lang string) int32 {
 	cstr, err := utils.BytePtrFromString(lang)
 	if err != nil {
 		return -1
 	}
 	var result ffi.Arg
-	langIdFunc.Call(unsafe.Pointer(&result), unsafe.Pointer(&cstr))
+	langIDFunc.Call(unsafe.Pointer(&result), unsafe.Pointer(&cstr))
 	return int32(result)
 }
 
@@ -64,4 +77,29 @@ func LangStr(id int32) string {
 		return ""
 	}
 	return utils.BytePtrToString(ptr)
+}
+
+// LangAutoDetect attempts to identify the language of the audio at offsetMs.
+// PcmToMel must have been called first (Full does this implicitly).
+//
+// Returns the top language id and, if probs is non-nil and pre-sized to at
+// least LangMaxID()+1 entries, fills it with the probability of every
+// language. Returns a negative value on failure.
+func LangAutoDetect(ctx Context, offsetMs, nThreads int32, probs []float32) int32 {
+	if ctx == 0 {
+		return -1
+	}
+	var probsPtr unsafe.Pointer
+	if len(probs) > 0 {
+		probsPtr = unsafe.Pointer(unsafe.SliceData(probs))
+	}
+	var result ffi.Arg
+	langAutoDetectFunc.Call(
+		unsafe.Pointer(&result),
+		unsafe.Pointer(&ctx),
+		unsafe.Pointer(&offsetMs),
+		unsafe.Pointer(&nThreads),
+		unsafe.Pointer(&probsPtr),
+	)
+	return int32(result)
 }

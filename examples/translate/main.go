@@ -1,13 +1,13 @@
-// hello is the smallest possible bucky example: load a tiny whisper model,
-// decode an audio file (WAV / MP3 / FLAC), and print the resulting text.
+// translate transcribes an audio clip and translates the result to English.
 //
 // Usage:
 //
 //	BUCKY_LIB=./lib BUCKY_TEST_MODEL=$HOME/models/ggml-tiny.bin \
-//	    go run ./examples/hello samples/jfk.wav
+//	    go run ./examples/translate samples/spanish.flac
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -18,10 +18,15 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 2 {
-		log.Fatalf("usage: %s <audio-file>", os.Args[0])
+	var (
+		lang    = flag.String("lang", "", "source language code (e.g. \"es\"); empty = auto-detect")
+		threads = flag.Int("threads", 4, "number of CPU threads")
+	)
+	flag.Parse()
+	if flag.NArg() < 1 {
+		log.Fatalf("usage: %s [flags] <audio-file>", os.Args[0])
 	}
-	audioPath := os.Args[1]
+	audioPath := flag.Arg(0)
 
 	libPath := os.Getenv("BUCKY_LIB")
 	if libPath == "" {
@@ -29,7 +34,7 @@ func main() {
 	}
 	modelPath := os.Getenv("BUCKY_TEST_MODEL")
 	if modelPath == "" {
-		log.Fatal("BUCKY_TEST_MODEL must point to a GGML whisper model (e.g. ggml-tiny.bin)")
+		log.Fatal("BUCKY_TEST_MODEL must point to a GGML whisper model (multilingual; not -en)")
 	}
 
 	if err := whisper.Load(libPath); err != nil {
@@ -43,6 +48,10 @@ func main() {
 	}
 	defer whisper.Free(ctx)
 
+	if !whisper.IsMultilingual(ctx) {
+		log.Fatal("loaded model is not multilingual; use a non-`.en` whisper model for translation")
+	}
+
 	f, err := os.Open(audioPath)
 	if err != nil {
 		log.Fatalf("open %s: %v", audioPath, err)
@@ -55,10 +64,18 @@ func main() {
 	}
 
 	wparams := whisper.FullDefaultParams(whisper.SamplingGreedy)
+	wparams.NThreads = int32(*threads)
+	wparams.Translate = 1
 	wparams.PrintProgress = 0
 	wparams.PrintRealtime = 0
 	wparams.PrintTimestamps = 0
 	wparams.NoTimestamps = 1
+
+	var refs whisper.StringRefs
+	if err := refs.SetLanguage(&wparams, *lang); err != nil {
+		log.Fatalf("SetLanguage: %v", err)
+	}
+	defer refs.KeepAlive()
 
 	if err := whisper.Full(ctx, wparams, samples); err != nil {
 		log.Fatalf("Full: %v", err)

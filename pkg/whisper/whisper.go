@@ -7,7 +7,7 @@ package whisper
 type (
 	Pos    int32
 	Token  int32
-	SeqId  int32
+	SeqID  int32
 	Memory uintptr
 )
 
@@ -93,7 +93,7 @@ type Aheads struct {
 
 // TokenData mirrors struct whisper_token_data.
 type TokenData struct {
-	Id    Token
+	ID    Token
 	Tid   Token
 	P     float32
 	Plog  float32

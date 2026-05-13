@@ -38,10 +38,21 @@ hello:
 	export BUCKY_TEST_MODEL=$(MODELS_DIR)/ggml-tiny.bin && \
 	go run ./examples/hello samples/jfk.wav
 
+# make bench runs BenchmarkFullJFK against BUCKY_BENCH_MODEL (defaults to
+# ggml-tiny). Override BUCKY_BENCH_MODEL=$(MODELS_DIR)/ggml-base.en.bin to
+# benchmark a larger model. Pass BENCHTIME=Nx to control iteration count.
+BUCKY_BENCH_MODEL ?= $(MODELS_DIR)/ggml-tiny.bin
+BENCHTIME         ?= 10x
+bench:
+	export BUCKY_LIB=$(BUCKY_LIB) && \
+	export BUCKY_BENCH_MODEL=$(BUCKY_BENCH_MODEL) && \
+	export BUCKY_TEST_AUDIO=$(MAKEFILE_DIR)samples/jfk.wav && \
+	go test -bench=BenchmarkFullJFK -benchtime=$(BENCHTIME) -run='^$$' ./pkg/whisper/
+
 vet:
 	go vet ./...
 
 fmt:
 	gofmt -s -w .
 
-.PHONY: download-models clean-whisper.cpp download-whisper.cpp build install test hello vet fmt
+.PHONY: download-models clean-whisper.cpp download-whisper.cpp build install test hello bench vet fmt

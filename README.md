@@ -10,15 +10,23 @@ speech-to-text sibling of [hybridgroup/yzma](https://github.com/hybridgroup/yzma
 
 ## Status
 
-PR #1 (foundation) and PR #2 (core FFI binding) have landed. The CLI
-(`bucky install`, `bucky system`, `bucky info`, `bucky version`), the
-`pkg/loader` wrapper, and the `pkg/download` matrix for upstream whisper.cpp
-release archives are in place. The `pkg/whisper` package now binds the core
-whisper.cpp API — model loading, `whisper_full` transcription, segment
-iteration, language helpers, and system info — using purego + jupiterrider/ffi
-with no CGo. `examples/hello` transcribes a bundled `samples/jfk.wav`
-end-to-end. Audio decoding for arbitrary formats lands in PR #3; see
-[`PLAN.md`](./PLAN.md) for the full roadmap.
+PR #1 (foundation), PR #2 (core FFI binding), and PR #3 (audio decoding +
+remaining transcription endpoints) have landed. Bucky now provides:
+
+- A CLI: `bucky install`, `bucky system`, `bucky info`, `bucky version`,
+  `bucky whisper transcribe …`
+- `pkg/loader` + `pkg/download` for fetching the upstream whisper.cpp
+  release archives
+- `pkg/whisper` — pure-Go FFI bindings (no CGo) to the core whisper.cpp
+  API: model loading, `whisper_full` / `whisper_full_parallel`, segment
+  + per-token iteration, language detection, translation, beam search
+- `pkg/audio` — pure-Go decoders for WAV (8/16/24/32-bit PCM and
+  32-bit float), MP3 (via go-mp3), FLAC (via mewkiz/flac), with
+  channel downmix and linear resampling to 16 kHz
+- Examples: `hello`, `transcribe`, `translate`, `segments`
+
+VAD, parallel decoders, word-level timestamps via DTW, and streaming are
+deferred to PR #4. See [`PLAN.md`](./PLAN.md) for the full roadmap.
 
 ## Quickstart
 
@@ -34,8 +42,15 @@ BUCKY_TEST_MODEL=$HOME/models/ggml-tiny.bin \
     go run ./examples/hello samples/jfk.wav
 ```
 
+Or via the CLI:
+
+```
+./bucky whisper transcribe -m $HOME/models/ggml-tiny.bin --segments samples/jfk.wav
+```
+
 See [`INSTALL.md`](./INSTALL.md) for per-OS notes (Linux currently requires
-building whisper.cpp from source).
+building whisper.cpp from source) and [`MODELS.md`](./MODELS.md) for
+recommended whisper models.
 
 ## License
 
