@@ -100,14 +100,11 @@ func streamDecode(ctx whisper.Context, samples []float32, windowSec, overlapSec 
 	)
 
 	for start := 0; start < len(samples); start += step {
-		end := start + winSamples
-		if end > len(samples) {
-			end = len(samples)
-		}
+		end := min(start+winSamples, len(samples))
 
 		nextPrompt, err := decodeWindow(ctx, samples[start:end], promptToks, threads, &out)
 		if err != nil {
-			return "", fmt.Errorf("Full window %d: %w", windowIndex, err)
+			return "", fmt.Errorf("full window %d: %w", windowIndex, err)
 		}
 		if len(nextPrompt) > nPromptTok {
 			nextPrompt = nextPrompt[len(nextPrompt)-nPromptTok:]

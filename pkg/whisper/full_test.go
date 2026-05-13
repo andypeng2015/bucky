@@ -50,7 +50,7 @@ func TestFullTranscribe(t *testing.T) {
 	}
 
 	var sb strings.Builder
-	for i := int32(0); i < n; i++ {
+	for i := range n {
 		sb.WriteString(FullGetSegmentText(ctx, i))
 	}
 	got := strings.ToLower(sb.String())

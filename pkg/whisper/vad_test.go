@@ -111,7 +111,7 @@ func TestVadDetectsSpeechInJFK(t *testing.T) {
 	if n <= 0 {
 		t.Fatalf("VadSegmentsNSegments = %d, want > 0", n)
 	}
-	for i := int32(0); i < n; i++ {
+	for i := range n {
 		t0 := VadSegmentsGetSegmentT0(segs, i)
 		t1 := VadSegmentsGetSegmentT1(segs, i)
 		t.Logf("vad segment %d: [%.2fs -> %.2fs]", i, t0/100, t1/100)

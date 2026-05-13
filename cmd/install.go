@@ -1,3 +1,5 @@
+// Package cmd implements the bucky CLI subcommands (install, system,
+// model, whisper, info) wired into urfave/cli.
 package cmd
 
 import (
