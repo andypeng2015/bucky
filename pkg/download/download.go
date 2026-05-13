@@ -263,12 +263,16 @@ func get(ctx context.Context, url, dest string, osVal OS, progress getter.Progre
 // builder's `tar --transform "s,./,whisper-<TAG>/,"`) is:
 //
 //	whisper-vX.Y.Z/libwhisper.so
-//	whisper-vX.Y.Z/libwhisper.so.1   (symlink)
+//	whisper-vX.Y.Z/libwhisper.so.1     (symlink)
 //	whisper-vX.Y.Z/libggml.so
 //	whisper-vX.Y.Z/libggml-base.so
 //	whisper-vX.Y.Z/libggml-cpu.so
-//	whisper-vX.Y.Z/libggml-cuda.so   (cuda variant only)
-//	whisper-vX.Y.Z/libggml-vulkan.so (vulkan variant only)
+//	whisper-vX.Y.Z/libggml-cpu-*.so    (per-microarch variants from
+//	                                    GGML_CPU_ALL_VARIANTS=ON; the
+//	                                    ggml backend registry picks the
+//	                                    best one at runtime)
+//	whisper-vX.Y.Z/libggml-cuda.so     (cuda variant only)
+//	whisper-vX.Y.Z/libggml-vulkan.so   (vulkan variant only)
 //
 // The leading whisper-vX.Y.Z/ component is stripped on extract so callers
 // can point BUCKY_LIB straight at dest.
