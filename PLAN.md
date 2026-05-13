@@ -26,12 +26,16 @@ OMNI chat model.
 
 **What's left, in priority order**
 
-1. **Windows smoke run**: `pkg/whisper` is exercised on `windows-latest`
-   by GitHub Actions for build/vet/staticcheck, but the FFI sizeof +
-   by-ref/by-value round-trip tests still need a Windows host with
-   `whisper.dll`. See INSTALL.md "Verification gap".
-2. **PR #5** (the original goal): wire bucky into the kronk repo,
+1. **PR #5** (the original goal): wire bucky into the kronk repo,
    implement `POST /v1/audio/transcriptions` (kronk issue #565).
+
+GitHub Actions (`linux.yml`, `macos.yml`, `windows.yml`) mirror the
+yzma split-by-OS pattern. Linux runs static checks + build + env-gated
+tests (no upstream whisper.cpp Linux artifact). macOS and Windows do
+the full pipeline: `bucky install`, `bucky model get tiny`, `bucky
+model get silero-vad`, `go test ./...` (FFI sizeof + state +
+VAD-pipeline round-trips against the real `libwhisper.dylib` /
+`whisper.dll`), and `examples/hello samples/jfk.wav`.
 
 ---
 

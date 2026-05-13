@@ -40,30 +40,17 @@ For CUDA builds use `-p cuda`; that downloads
 `whisper-cublas-12.4.0-bin-x64.zip` instead. You must already have the
 matching CUDA 12.4 runtime installed on the host.
 
-> **Verification gap.** `pkg/whisper.WhisperFullParams` is sized assuming
-> LLP64 with 4-byte `int` and 8-byte `size_t`/pointer — exactly what
-> MSVC produces on Windows amd64 — and the GitHub Actions matrix
-> verifies `go build`, `go vet`, `staticcheck`, and `gofmt -s -d` on
-> `windows-latest`. The *FFI round-trip* tests (`TestWhisperFullParamsSize`,
-> `TestVadParamsSize`, `TestVadContextParamsSize`, `TestFullWithState`)
-> still need to be run on a Windows host with `BUCKY_LIB` pointed at
-> `lib\whisper.dll` because CI does not have `whisper.dll` installed.
-> The bundled developers do not have a Windows host yet; if you are
-> running on Windows, please run:
->
-> ```
-> set BUCKY_LIB=%CD%\lib
-> set BUCKY_TEST_MODEL=%USERPROFILE%\models\ggml-tiny.bin
-> set BUCKY_TEST_AUDIO=%CD%\samples\jfk.wav
-> go test -count=1 -v -run "TestWhisperFullParamsSize|TestVadParamsSize|TestVadContextParamsSize|TestFullWithState" ./pkg/whisper/
-> .\bucky.exe install -lib .\lib
-> .\bucky.exe system
-> go run .\examples\hello samples\jfk.wav
-> ```
->
-> and report any sizeof / by-ref vs by-value mismatch as a GitHub issue.
-> If you see `unsafe.Sizeof(WhisperFullParams) = N, want 304` with N != 304
-> the `_padN` fields in `pkg/whisper/params.go` need adjustment for the
+> **Windows ABI verification.** `pkg/whisper.WhisperFullParams` is sized
+> assuming LLP64 with 4-byte `int` and 8-byte `size_t`/pointer — exactly
+> what MSVC produces on Windows amd64. The
+> [`Windows`](.github/workflows/windows.yml) GitHub Actions job runs the
+> full FFI smoke on every push: `bucky install`, `bucky model get tiny`,
+> `go test -count=1 ./...` (which exercises `TestWhisperFullParamsSize`,
+> `TestVadParamsSize`, `TestVadContextParamsSize`, and `TestFullWithState`
+> against the real `whisper.dll`), and `examples/hello samples/jfk.wav`.
+> Watch the badge in [README.md](./README.md) for regressions; if you see
+> `unsafe.Sizeof(WhisperFullParams) = N, want 304` with N != 304 the
+> `_padN` fields in `pkg/whisper/params.go` need adjustment for the
 > Windows ABI.
 
 ## Linux (amd64 / arm64)

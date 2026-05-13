@@ -32,6 +32,10 @@ Read the [PLAN.md](./PLAN.md) and [INSTALL.md](./INSTALL.md) to learn more about
 [![go.mod Go version](https://img.shields.io/github/go-mod/go-version/ardanlabs/bucky)](https://github.com/ardanlabs/bucky)
 [![whisper.cpp Release](https://img.shields.io/github/v/release/ggml-org/whisper.cpp?label=whisper.cpp)](https://github.com/ggml-org/whisper.cpp/releases)
 
+[![Linux](https://github.com/ardanlabs/bucky/actions/workflows/linux.yml/badge.svg)](https://github.com/ardanlabs/bucky/actions/workflows/linux.yml)
+[![macOS](https://github.com/ardanlabs/bucky/actions/workflows/macos.yml/badge.svg)](https://github.com/ardanlabs/bucky/actions/workflows/macos.yml)
+[![Windows](https://github.com/ardanlabs/bucky/actions/workflows/windows.yml/badge.svg)](https://github.com/ardanlabs/bucky/actions/workflows/windows.yml)
+
 Sometimes there are breaking changes to whisper.cpp that require an update to bucky. Here are the known compatible versions:
 
 | whisper.cpp | bucky  |
