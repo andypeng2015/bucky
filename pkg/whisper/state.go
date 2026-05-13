@@ -62,94 +62,36 @@ var (
 )
 
 func loadStateFuncs(lib ffi.Lib) error {
-	var err error
-
-	if initStateFunc, err = lib.Prep("whisper_init_state", &ffi.TypePointer, &ffi.TypePointer); err != nil {
-		return loadError("whisper_init_state", err)
-	}
-
-	if freeStateFunc, err = lib.Prep("whisper_free_state", &ffi.TypeVoid, &ffi.TypePointer); err != nil {
-		return loadError("whisper_free_state", err)
-	}
-
-	if fullWithStateFunc, err = lib.Prep("whisper_full_with_state",
-		&ffi.TypeSint32,
-		&ffi.TypePointer,
-		&ffi.TypePointer,
-		&ffiTypeFullParams,
-		&ffi.TypePointer,
-		&ffi.TypeSint32,
-	); err != nil {
-		return loadError("whisper_full_with_state", err)
-	}
-
-	if fullNSegmentsFromStateFunc, err = lib.Prep("whisper_full_n_segments_from_state", &ffi.TypeSint32, &ffi.TypePointer); err != nil {
-		return loadError("whisper_full_n_segments_from_state", err)
-	}
-
-	if fullLangIDFromStateFunc, err = lib.Prep("whisper_full_lang_id_from_state", &ffi.TypeSint32, &ffi.TypePointer); err != nil {
-		return loadError("whisper_full_lang_id_from_state", err)
-	}
-
-	if fullGetSegmentT0FromStateFunc, err = lib.Prep("whisper_full_get_segment_t0_from_state",
-		&ffi.TypeSint64, &ffi.TypePointer, &ffi.TypeSint32,
-	); err != nil {
-		return loadError("whisper_full_get_segment_t0_from_state", err)
-	}
-
-	if fullGetSegmentT1FromStateFunc, err = lib.Prep("whisper_full_get_segment_t1_from_state",
-		&ffi.TypeSint64, &ffi.TypePointer, &ffi.TypeSint32,
-	); err != nil {
-		return loadError("whisper_full_get_segment_t1_from_state", err)
-	}
-
-	if fullGetSegmentTextFromStateFunc, err = lib.Prep("whisper_full_get_segment_text_from_state",
-		&ffi.TypePointer, &ffi.TypePointer, &ffi.TypeSint32,
-	); err != nil {
-		return loadError("whisper_full_get_segment_text_from_state", err)
-	}
-
-	if fullGetSegmentSpeakerTurnNextFromStateFunc, err = lib.Prep("whisper_full_get_segment_speaker_turn_next_from_state",
-		&ffi.TypeUint8, &ffi.TypePointer, &ffi.TypeSint32,
-	); err != nil {
-		return loadError("whisper_full_get_segment_speaker_turn_next_from_state", err)
-	}
-
-	if fullGetSegmentNoSpeechProbFromStateFunc, err = lib.Prep("whisper_full_get_segment_no_speech_prob_from_state",
-		&ffi.TypeFloat, &ffi.TypePointer, &ffi.TypeSint32,
-	); err != nil {
-		return loadError("whisper_full_get_segment_no_speech_prob_from_state", err)
-	}
-
-	if fullNTokensFromStateFunc, err = lib.Prep("whisper_full_n_tokens_from_state",
-		&ffi.TypeSint32, &ffi.TypePointer, &ffi.TypeSint32,
-	); err != nil {
-		return loadError("whisper_full_n_tokens_from_state", err)
-	}
-
 	// Note: whisper_full_get_token_text_from_state takes BOTH ctx and state.
-	if fullGetTokenTextFromStateFunc, err = lib.Prep("whisper_full_get_token_text_from_state",
-		&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer, &ffi.TypeSint32, &ffi.TypeSint32,
-	); err != nil {
-		return loadError("whisper_full_get_token_text_from_state", err)
+	specs := []struct {
+		name string
+		out  *ffi.Fun
+		ret  *ffi.Type
+		args []*ffi.Type
+	}{
+		{"whisper_init_state", &initStateFunc, &ffi.TypePointer, []*ffi.Type{&ffi.TypePointer}},
+		{"whisper_free_state", &freeStateFunc, &ffi.TypeVoid, []*ffi.Type{&ffi.TypePointer}},
+		{"whisper_full_with_state", &fullWithStateFunc, &ffi.TypeSint32, []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffiTypeFullParams, &ffi.TypePointer, &ffi.TypeSint32}},
+		{"whisper_full_n_segments_from_state", &fullNSegmentsFromStateFunc, &ffi.TypeSint32, []*ffi.Type{&ffi.TypePointer}},
+		{"whisper_full_lang_id_from_state", &fullLangIDFromStateFunc, &ffi.TypeSint32, []*ffi.Type{&ffi.TypePointer}},
+		{"whisper_full_get_segment_t0_from_state", &fullGetSegmentT0FromStateFunc, &ffi.TypeSint64, []*ffi.Type{&ffi.TypePointer, &ffi.TypeSint32}},
+		{"whisper_full_get_segment_t1_from_state", &fullGetSegmentT1FromStateFunc, &ffi.TypeSint64, []*ffi.Type{&ffi.TypePointer, &ffi.TypeSint32}},
+		{"whisper_full_get_segment_text_from_state", &fullGetSegmentTextFromStateFunc, &ffi.TypePointer, []*ffi.Type{&ffi.TypePointer, &ffi.TypeSint32}},
+		{"whisper_full_get_segment_speaker_turn_next_from_state", &fullGetSegmentSpeakerTurnNextFromStateFunc, &ffi.TypeUint8, []*ffi.Type{&ffi.TypePointer, &ffi.TypeSint32}},
+		{"whisper_full_get_segment_no_speech_prob_from_state", &fullGetSegmentNoSpeechProbFromStateFunc, &ffi.TypeFloat, []*ffi.Type{&ffi.TypePointer, &ffi.TypeSint32}},
+		{"whisper_full_n_tokens_from_state", &fullNTokensFromStateFunc, &ffi.TypeSint32, []*ffi.Type{&ffi.TypePointer, &ffi.TypeSint32}},
+		{"whisper_full_get_token_text_from_state", &fullGetTokenTextFromStateFunc, &ffi.TypePointer, []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypeSint32, &ffi.TypeSint32}},
+		{"whisper_full_get_token_id_from_state", &fullGetTokenIDFromStateFunc, &ffi.TypeSint32, []*ffi.Type{&ffi.TypePointer, &ffi.TypeSint32, &ffi.TypeSint32}},
+		{"whisper_full_get_token_data_from_state", &fullGetTokenDataFromStateFunc, &ffiTypeTokenData, []*ffi.Type{&ffi.TypePointer, &ffi.TypeSint32, &ffi.TypeSint32}},
+		{"whisper_full_get_token_p_from_state", &fullGetTokenPFromStateFunc, &ffi.TypeFloat, []*ffi.Type{&ffi.TypePointer, &ffi.TypeSint32, &ffi.TypeSint32}},
 	}
 
-	if fullGetTokenIDFromStateFunc, err = lib.Prep("whisper_full_get_token_id_from_state",
-		&ffi.TypeSint32, &ffi.TypePointer, &ffi.TypeSint32, &ffi.TypeSint32,
-	); err != nil {
-		return loadError("whisper_full_get_token_id_from_state", err)
-	}
-
-	if fullGetTokenDataFromStateFunc, err = lib.Prep("whisper_full_get_token_data_from_state",
-		&ffiTypeTokenData, &ffi.TypePointer, &ffi.TypeSint32, &ffi.TypeSint32,
-	); err != nil {
-		return loadError("whisper_full_get_token_data_from_state", err)
-	}
-
-	if fullGetTokenPFromStateFunc, err = lib.Prep("whisper_full_get_token_p_from_state",
-		&ffi.TypeFloat, &ffi.TypePointer, &ffi.TypeSint32, &ffi.TypeSint32,
-	); err != nil {
-		return loadError("whisper_full_get_token_p_from_state", err)
+	for _, s := range specs {
+		fn, err := lib.Prep(s.name, s.ret, s.args...)
+		if err != nil {
+			return loadError(s.name, err)
+		}
+		*s.out = fn
 	}
 
 	return nil

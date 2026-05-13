@@ -76,3 +76,73 @@ memcpy:  167.28 GB/s ( 4 thread)
 Full output is produced by the `BenchMemcpyStr` / `BenchGGMLMulMatStr`
 wrappers — invoke them directly from a small driver program if you want
 the complete table.
+
+## Audio decode (pure Go, no FFI)
+
+`pkg/audio` exposes both an allocating form (`Decode` / `DecodeWAV`) and a
+buffer-reusing form (`DecodeInto` / `DecodeWAVInto`) for callers that
+process many clips and want to avoid per-call allocations. The bundled
+`samples/jfk.wav` (11.0 s, 16 kHz mono 16-bit PCM, ~352 KB on disk) drives
+the benchmarks.
+
+| Benchmark | ns/op | B/op | allocs/op | vs allocating |
+|---|---:|---:|---:|---:|
+| `BenchmarkDecodeWAV` | 158,812 | 1,056,910 | 9 | baseline |
+| `BenchmarkDecodeWAVInto` | 129,963 | 352,393 | 8 | **-18% time, -67% mem** |
+| `BenchmarkDecode` | 160,447 | 1,057,029 | 13 | baseline |
+| `BenchmarkDecodeInto` | 131,283 | 352,513 | 12 | **-18% time, -67% mem** |
+
+The `Into` variants eliminate the per-call `[]float32` output allocation
+(~705 KB for an 11 s clip). The remaining 352 KB is the internal `[]byte`
+WAV chunk read by `readWAVData` and could be pooled in a future change if
+needed.
+
+Run command:
+
+```
+BUCKY_TEST_AUDIO=$PWD/samples/jfk.wav \
+    go test -bench=. -benchtime=2s -run='^$' -benchmem ./pkg/audio/
+```
+
+## Profiling
+
+`make profile-whisper` and `make profile-audio` capture CPU + memory
+profiles for the matching benchmark and write them to `./profiles/`:
+
+```
+make profile-whisper                   # BenchmarkFullJFK + pprof artifacts
+make profile-audio                     # BenchmarkDecode / BenchmarkDecodeWAV
+make profile                           # both, in sequence
+```
+
+Override `PROFILE_BENCHTIME` (default `5s`, time-based) to control how
+long the benchmark runs. The default is time-based on purpose: pprof
+samples CPU at 10 ms granularity, so a benchmark that finishes in a
+few ms produces an empty profile. Pass e.g. `PROFILE_BENCHTIME=100x` to
+fall back to a fixed iteration count.
+
+Inspect with the standard `go tool pprof` web UI:
+
+```
+go tool pprof -http=:0 profiles/whisper.cpu.prof
+go tool pprof -http=:0 profiles/whisper.mem.prof
+go tool pprof -http=:0 profiles/audio.cpu.prof
+go tool pprof -http=:0 profiles/audio.mem.prof
+```
+
+What to expect:
+
+- **`whisper.cpu.prof`** is dominated by `purego.SyscallN` /
+  `ffi.Fun.Call` trampolines (almost all real work happens inside the
+  loaded `libwhisper.dylib`, which pprof cannot see). The Go-side time
+  is the FFI marshalling cost.
+- **`whisper.mem.prof`** is small — `Full` itself does not allocate;
+  the only Go allocations per iteration are the params struct copy and
+  the `WhisperFullParams` value passed by libffi.
+- **`audio.cpu.prof`** is the right place to look for real hot Go
+  code (WAV header parse, `decodeWAVData`, `DownmixToMono`,
+  `ResampleLinear`).
+- **`audio.mem.prof`** shows the `[]float32` allocations from
+  `DecodeWAV` and the resample buffer.
+
+The captured `*.test` binaries and `*.prof` files are gitignored.

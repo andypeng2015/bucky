@@ -60,20 +60,36 @@ func main() {
 	}
 	defer whisper.Free(ctx)
 
+	samples, err := loadAudio(audioPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	text, err := streamDecode(ctx, samples, *windowSec, *overlapSec, *nPromptTok, *threads)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(strings.TrimSpace(text))
+}
+
+func loadAudio(audioPath string) ([]float32, error) {
 	f, err := os.Open(audioPath)
 	if err != nil {
-		log.Fatalf("open %s: %v", audioPath, err)
+		return nil, fmt.Errorf("open %s: %w", audioPath, err)
 	}
 	defer f.Close()
 	samples, err := audio.Decode(f)
 	if err != nil {
-		log.Fatalf("audio.Decode: %v", err)
+		return nil, fmt.Errorf("audio.Decode: %w", err)
 	}
+	return samples, nil
+}
 
-	winSamples := int(*windowSec * float64(whisper.SampleRate))
-	overSamples := int(*overlapSec * float64(whisper.SampleRate))
+func streamDecode(ctx whisper.Context, samples []float32, windowSec, overlapSec float64, nPromptTok, threads int) (string, error) {
+	winSamples := int(windowSec * float64(whisper.SampleRate))
+	overSamples := int(overlapSec * float64(whisper.SampleRate))
 	if overSamples >= winSamples {
-		log.Fatalf("overlap (%ds) must be smaller than window (%ds)", int(*overlapSec), int(*windowSec))
+		return "", fmt.Errorf("overlap (%ds) must be smaller than window (%ds)", int(overlapSec), int(windowSec))
 	}
 	step := winSamples - overSamples
 
@@ -88,46 +104,13 @@ func main() {
 		if end > len(samples) {
 			end = len(samples)
 		}
-		chunk := samples[start:end]
 
-		wparams := whisper.FullDefaultParams(whisper.SamplingGreedy)
-		wparams.NThreads = int32(*threads)
-		wparams.PrintProgress = 0
-		wparams.PrintRealtime = 0
-		wparams.PrintTimestamps = 0
-		wparams.NoTimestamps = 1
-		wparams.SingleSegment = 1
-		wparams.NoContext = 1 // we manage context explicitly via PromptTokens
-
-		// Hand the previous window's tail tokens to whisper.cpp as a
-		// const whisper_token *. The slice's backing array must remain
-		// reachable for the duration of the Full call, which is
-		// guaranteed by the runtime.KeepAlive at the bottom of this
-		// iteration. NoContext=1 above ensures whisper does not also
-		// prepend its own previous-segment context.
-		if len(promptToks) > 0 {
-			wparams.PromptTokens = uintptr(unsafe.Pointer(unsafe.SliceData(promptToks)))
-			wparams.PromptNTokens = int32(len(promptToks))
+		nextPrompt, err := decodeWindow(ctx, samples[start:end], promptToks, threads, &out)
+		if err != nil {
+			return "", fmt.Errorf("Full window %d: %w", windowIndex, err)
 		}
-
-		if err := whisper.Full(ctx, wparams, chunk); err != nil {
-			log.Fatalf("Full window %d: %v", windowIndex, err)
-		}
-
-		// Collect this window's text and tail tokens for the next pass.
-		var nextPrompt []int32
-		for i := int32(0); i < whisper.FullNSegments(ctx); i++ {
-			out.WriteString(whisper.FullGetSegmentText(ctx, i))
-			for j := int32(0); j < whisper.FullNTokens(ctx, i); j++ {
-				id := whisper.FullGetTokenID(ctx, i, j)
-				if id == whisper.TokenNull {
-					continue
-				}
-				nextPrompt = append(nextPrompt, int32(id))
-			}
-		}
-		if len(nextPrompt) > *nPromptTok {
-			nextPrompt = nextPrompt[len(nextPrompt)-*nPromptTok:]
+		if len(nextPrompt) > nPromptTok {
+			nextPrompt = nextPrompt[len(nextPrompt)-nPromptTok:]
 		}
 
 		// Keep promptToks (used by *this* iteration's Full call) alive
@@ -141,5 +124,46 @@ func main() {
 		}
 	}
 
-	fmt.Println(strings.TrimSpace(out.String()))
+	return out.String(), nil
+}
+
+// decodeWindow runs whisper.Full on a single window, appends its text to out,
+// and returns the window's tokens for use as the next window's PromptTokens.
+//
+// Hand the previous window's tail tokens to whisper.cpp as a
+// const whisper_token *. The slice's backing array must remain reachable for
+// the duration of the Full call, which is guaranteed by the runtime.KeepAlive
+// in the caller. NoContext=1 ensures whisper does not also prepend its own
+// previous-segment context.
+func decodeWindow(ctx whisper.Context, chunk []float32, promptToks []int32, threads int, out *strings.Builder) ([]int32, error) {
+	wparams := whisper.FullDefaultParams(whisper.SamplingGreedy)
+	wparams.NThreads = int32(threads)
+	wparams.PrintProgress = 0
+	wparams.PrintRealtime = 0
+	wparams.PrintTimestamps = 0
+	wparams.NoTimestamps = 1
+	wparams.SingleSegment = 1
+	wparams.NoContext = 1 // we manage context explicitly via PromptTokens
+
+	if len(promptToks) > 0 {
+		wparams.PromptTokens = uintptr(unsafe.Pointer(unsafe.SliceData(promptToks)))
+		wparams.PromptNTokens = int32(len(promptToks))
+	}
+
+	if err := whisper.Full(ctx, wparams, chunk); err != nil {
+		return nil, err
+	}
+
+	var nextPrompt []int32
+	for i := int32(0); i < whisper.FullNSegments(ctx); i++ {
+		out.WriteString(whisper.FullGetSegmentText(ctx, i))
+		for j := int32(0); j < whisper.FullNTokens(ctx, i); j++ {
+			id := whisper.FullGetTokenID(ctx, i, j)
+			if id == whisper.TokenNull {
+				continue
+			}
+			nextPrompt = append(nextPrompt, int32(id))
+		}
+	}
+	return nextPrompt, nil
 }

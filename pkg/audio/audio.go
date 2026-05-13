@@ -20,8 +20,33 @@ var ErrUnsupportedFormat = errors.New("audio: unsupported format")
 // Decode sniffs the magic bytes of the input and decodes it into 16 kHz mono
 // float32 PCM in the range [-1.0, 1.0]. The returned slice is ready to pass
 // to whisper.Full.
+//
+// Decode allocates a fresh output slice on every call. For high-throughput
+// callers (e.g. an HTTP transcription pool) prefer DecodeInto, which lets
+// you reuse a buffer across calls and avoid the per-call allocation.
 func Decode(r io.Reader) ([]float32, error) {
-	samples, sampleRate, channels, err := DecodeRaw(r)
+	return DecodeInto(nil, r)
+}
+
+// DecodeInto behaves like Decode but appends decoded samples to dst (which
+// may be nil). When dst has enough capacity for all decoded samples, the
+// returned slice shares dst's backing array and no []float32 allocation
+// happens. Pass the previous result (re-sliced to length 0) to reuse the
+// buffer:
+//
+//	var buf []float32
+//	for {
+//	    var err error
+//	    buf, err = audio.DecodeInto(buf[:0], r)
+//	    ...
+//	}
+//
+// The buffer-reuse fast path applies only to the WAV decoder. MP3/FLAC
+// decoders allocate internally regardless. Likewise, inputs that are not
+// already 16 kHz mono fall back to allocating fresh slices for the
+// downmix and/or resample passes.
+func DecodeInto(dst []float32, r io.Reader) ([]float32, error) {
+	samples, sampleRate, channels, err := DecodeRawInto(dst, r)
 	if err != nil {
 		return nil, err
 	}
@@ -37,6 +62,12 @@ func Decode(r io.Reader) ([]float32, error) {
 // rate and channel layout (interleaved when channels > 1), as float32 in
 // the range [-1.0, 1.0].
 func DecodeRaw(r io.Reader) (samples []float32, sampleRate int, channels int, err error) {
+	return DecodeRawInto(nil, r)
+}
+
+// DecodeRawInto is the buffer-reusing form of DecodeRaw. See DecodeInto
+// for the buffer-reuse semantics; only the WAV path actually consumes dst.
+func DecodeRawInto(dst []float32, r io.Reader) (samples []float32, sampleRate int, channels int, err error) {
 	const sniffN = 12
 	head := make([]byte, sniffN)
 	n, rerr := io.ReadFull(r, head)
@@ -48,7 +79,7 @@ func DecodeRaw(r io.Reader) (samples []float32, sampleRate int, channels int, er
 
 	switch {
 	case n >= 12 && string(head[0:4]) == "RIFF" && string(head[8:12]) == "WAVE":
-		return DecodeWAV(combined)
+		return DecodeWAVInto(dst, combined)
 	case n >= 4 && string(head[0:4]) == "fLaC":
 		return DecodeFLAC(combined)
 	case looksLikeMP3(head):

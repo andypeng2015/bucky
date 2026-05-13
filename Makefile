@@ -49,10 +49,59 @@ bench:
 	export BUCKY_TEST_AUDIO=$(MAKEFILE_DIR)samples/jfk.wav && \
 	go test -bench=BenchmarkFullJFK -benchtime=$(BENCHTIME) -run='^$$' ./pkg/whisper/
 
+# make profile-whisper captures CPU + memory profiles for BenchmarkFullJFK
+# and writes them to ./profiles/. Useful for tracing time/allocs spent in
+# purego trampolines, audio decode, etc. View with:
+#
+#   go tool pprof -http=:0 profiles/whisper.cpu.prof
+#   go tool pprof -http=:0 profiles/whisper.mem.prof
+#
+# PROFILE_BENCHTIME is time-based (default 5s) so the CPU profile collects
+# enough samples to be meaningful — pprof samples at 10ms granularity, so a
+# benchmark that runs for only a few ms produces an empty profile. Use the
+# `Ns` syntax (e.g. 100x) only if you specifically want a fixed iteration
+# count.
+PROFILE_BENCHTIME ?= 5s
+profile-whisper:
+	mkdir -p profiles
+	export BUCKY_LIB=$(BUCKY_LIB) && \
+	export BUCKY_BENCH_MODEL=$(BUCKY_BENCH_MODEL) && \
+	export BUCKY_TEST_AUDIO=$(MAKEFILE_DIR)samples/jfk.wav && \
+	go test -bench=BenchmarkFullJFK -benchtime=$(PROFILE_BENCHTIME) -run='^$$' \
+	    -cpuprofile=profiles/whisper.cpu.prof \
+	    -memprofile=profiles/whisper.mem.prof \
+	    -benchmem \
+	    -o profiles/whisper.test \
+	    ./pkg/whisper/
+	@echo
+	@echo "Profiles written to ./profiles/. Inspect with:"
+	@echo "  go tool pprof -http=:0 profiles/whisper.cpu.prof"
+	@echo "  go tool pprof -http=:0 profiles/whisper.mem.prof"
+
+# make profile-audio captures CPU + memory profiles for the pure-Go audio
+# decode path. Useful for understanding allocation cost in DecodeWAV and
+# friends. View the same way as profile-whisper.
+profile-audio:
+	mkdir -p profiles
+	export BUCKY_TEST_AUDIO=$(MAKEFILE_DIR)samples/jfk.wav && \
+	go test -bench=. -benchtime=$(PROFILE_BENCHTIME) -run='^$$' \
+	    -cpuprofile=profiles/audio.cpu.prof \
+	    -memprofile=profiles/audio.mem.prof \
+	    -benchmem \
+	    -o profiles/audio.test \
+	    ./pkg/audio/
+	@echo
+	@echo "Profiles written to ./profiles/. Inspect with:"
+	@echo "  go tool pprof -http=:0 profiles/audio.cpu.prof"
+	@echo "  go tool pprof -http=:0 profiles/audio.mem.prof"
+
+# make profile runs both profilers in sequence.
+profile: profile-whisper profile-audio
+
 vet:
 	go vet ./...
 
 fmt:
 	gofmt -s -w .
 
-.PHONY: download-models clean-whisper.cpp download-whisper.cpp build install test hello bench vet fmt
+.PHONY: download-models clean-whisper.cpp download-whisper.cpp build install test hello bench profile profile-whisper profile-audio vet fmt

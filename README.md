@@ -28,7 +28,7 @@ Read [INSTALL.md](./INSTALL.md) for per-OS install notes and [MODELS.md](./MODEL
 ## Project Status
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/ardanlabs/bucky.svg)](https://pkg.go.dev/github.com/ardanlabs/bucky)
-[![Go Report Card](https://goreportcard.com/badge/github.com/ardanlabs/bucky)](https://goreportcard.com/report/github.com/ardanlabs/bucky)
+[![Go Report Card](https://goreportcard.com/badge/github.com/ardanlabs/bucky?style=flat-square)](https://goreportcard.com/report/github.com/ardanlabs/bucky)
 [![go.mod Go version](https://img.shields.io/github/go-mod/go-version/ardanlabs/bucky)](https://github.com/ardanlabs/bucky)
 [![whisper.cpp Release](https://img.shields.io/github/v/release/ggml-org/whisper.cpp?label=whisper.cpp)](https://github.com/ggml-org/whisper.cpp/releases)
 
