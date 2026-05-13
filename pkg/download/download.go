@@ -1,7 +1,9 @@
 package download
 
 import (
+	"archive/tar"
 	"archive/zip"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
@@ -22,9 +24,14 @@ var (
 	ErrUnknownProcessor    = errors.New("unknown processor")
 	ErrInvalidVersion      = errors.New("invalid version")
 	ErrFileNotFound        = errors.New("could not download file: the requested whisper.cpp version may still be building for your platform")
-	ErrLinuxNoPrebuilt     = errors.New("whisper.cpp does not publish prebuilt Linux binaries; build from source per INSTALL.md")
 	ErrUnsupportedPlatform = errors.New("no prebuilt whisper.cpp asset for this platform")
 )
+
+// BuckyBuilderRepo is the GitHub repo serving prebuilt Linux whisper.cpp
+// libraries. whisper.cpp upstream publishes no Linux release artifacts at
+// all, so bucky-builder fills the gap. See
+// https://github.com/ardanlabs/bucky-builder for the build matrix.
+const BuckyBuilderRepo = "ardanlabs/bucky-builder"
 
 // DefaultWhisperVersion is the well-known whisper.cpp release tag bucky's
 // FFI struct mirrors (e.g. WhisperFullParams's 304-byte layout) are tested
@@ -39,12 +46,21 @@ var (
 	RetryCount = 3
 	// RetryDelay is the delay between retries when obtaining the latest whisper.cpp version.
 	RetryDelay = 3 * time.Second
-	// versionURL is the URL for fetching the latest whisper.cpp release.
-	versionURL = "https://api.github.com/repos/ggml-org/whisper.cpp/releases/latest"
+	// versionURL is the URL serving the latest whisper.cpp tag bucky-builder
+	// has produced Linux artifacts for. We deliberately do NOT hit the
+	// GitHub releases API here — that endpoint is rate-limited per IP,
+	// which bit our macOS CI run. The Pages-hosted version.json is
+	// republished by bucky-builder's publish-version workflow whenever a
+	// new whisper.cpp release ships.
+	versionURL = "https://ardanlabs.github.io/bucky-builder/version.json"
 )
 
-// WhisperLatestVersion fetches the latest release tag of whisper.cpp from the
-// upstream GitHub releases API.
+// WhisperLatestVersion fetches the latest whisper.cpp release tag bucky knows
+// about. This is sourced from bucky-builder's GitHub Pages, NOT from
+// whisper.cpp upstream directly, so the value reflects what bucky-builder
+// has built + tested. macOS / Windows still pull their assets from
+// upstream, but the version string lines up either way (bucky-builder
+// rebuilds within an hour of a new whisper.cpp tag).
 func WhisperLatestVersion() (string, error) {
 	var version string
 	var err error
@@ -120,7 +136,28 @@ func getDownloadLocationAndFilename(arch Arch, os OS, prcssr Processor, version 
 		}
 
 	case Linux:
-		return "", "", ErrLinuxNoPrebuilt
+		// Linux assets are produced by ardanlabs/bucky-builder (whisper.cpp
+		// upstream publishes none). Filename pattern is
+		// whisper-<TAG>-bin-ubuntu-<backend>-<arch>.tar.gz; both AMD64 and
+		// ARM64 are supported across cpu/cuda/vulkan.
+		location = fmt.Sprintf("https://github.com/%s/releases/download/%s", BuckyBuilderRepo, version)
+
+		var archStr string
+		switch arch {
+		case AMD64:
+			archStr = "x64"
+		case ARM64:
+			archStr = "arm64"
+		default:
+			return "", "", fmt.Errorf("%w: linux %s not supported", ErrUnsupportedPlatform, arch)
+		}
+
+		switch prcssr {
+		case CPU, CUDA, Vulkan:
+			filename = fmt.Sprintf("whisper-%s-bin-ubuntu-%s-%s.tar.gz", version, prcssr, archStr)
+		default:
+			return "", "", fmt.Errorf("%w: linux supports cpu/cuda/vulkan", ErrUnknownProcessor)
+		}
 
 	default:
 		return "", "", ErrUnknownOS
@@ -214,9 +251,106 @@ func get(ctx context.Context, url, dest string, osVal OS, progress getter.Progre
 		return extractDarwinXCFramework(downloadFile, dest)
 	case Windows:
 		return extractWindowsZip(downloadFile, dest)
+	case Linux:
+		return extractLinuxTarGz(downloadFile, dest)
 	default:
 		return fmt.Errorf("%w: extraction not implemented for %s", ErrUnsupportedPlatform, osVal)
 	}
+}
+
+// extractLinuxTarGz pulls libwhisper.so + libggml*.so out of a bucky-builder
+// .tar.gz and writes them flat into dest. Archive layout (set by the
+// builder's `tar --transform "s,./,whisper-<TAG>/,"`) is:
+//
+//	whisper-vX.Y.Z/libwhisper.so
+//	whisper-vX.Y.Z/libwhisper.so.1   (symlink)
+//	whisper-vX.Y.Z/libggml.so
+//	whisper-vX.Y.Z/libggml-base.so
+//	whisper-vX.Y.Z/libggml-cpu.so
+//	whisper-vX.Y.Z/libggml-cuda.so   (cuda variant only)
+//	whisper-vX.Y.Z/libggml-vulkan.so (vulkan variant only)
+//
+// The leading whisper-vX.Y.Z/ component is stripped on extract so callers
+// can point BUCKY_LIB straight at dest.
+func extractLinuxTarGz(tgzPath, dest string) error {
+	f, err := os.Open(tgzPath)
+	if err != nil {
+		return fmt.Errorf("failed to open tar.gz: %w", err)
+	}
+	defer f.Close()
+
+	gz, err := gzip.NewReader(f)
+	if err != nil {
+		return fmt.Errorf("failed to open gzip: %w", err)
+	}
+	defer gz.Close()
+
+	tr := tar.NewReader(gz)
+	any := false
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("tar read: %w", err)
+		}
+
+		// Strip the leading whisper-<TAG>/ component. Skip top-level
+		// directory entries (we recreate dirs as needed).
+		name := strings.TrimLeft(hdr.Name, "./")
+		if i := strings.Index(name, "/"); i >= 0 {
+			name = name[i+1:]
+		} else {
+			// Top-level entry (the whisper-<TAG> dir itself, or a stray
+			// loose file). Skip directories; treat loose files as flat.
+			if hdr.Typeflag == tar.TypeDir {
+				continue
+			}
+		}
+		if name == "" {
+			continue
+		}
+
+		target := filepath.Join(dest, name)
+		switch hdr.Typeflag {
+		case tar.TypeDir:
+			if err := os.MkdirAll(target, 0o755); err != nil {
+				return fmt.Errorf("mkdir %s: %w", target, err)
+			}
+		case tar.TypeReg, tar.TypeRegA:
+			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+				return fmt.Errorf("mkdir parent of %s: %w", target, err)
+			}
+			out, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR|os.O_TRUNC, os.FileMode(hdr.Mode)&0o777)
+			if err != nil {
+				return fmt.Errorf("create %s: %w", target, err)
+			}
+			if _, err := io.Copy(out, tr); err != nil {
+				out.Close()
+				return fmt.Errorf("write %s: %w", target, err)
+			}
+			out.Close()
+			any = true
+		case tar.TypeSymlink:
+			// Library SONAME symlinks (e.g. libwhisper.so -> libwhisper.so.1)
+			// must be preserved or dlopen will fail at runtime.
+			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+				return fmt.Errorf("mkdir parent of %s: %w", target, err)
+			}
+			_ = os.Remove(target) // overwrite if present
+			if err := os.Symlink(hdr.Linkname, target); err != nil {
+				return fmt.Errorf("symlink %s -> %s: %w", target, hdr.Linkname, err)
+			}
+		default:
+			// Skip anything we don't understand (hardlinks, devices, fifos).
+		}
+	}
+
+	if !any {
+		return errors.New("linux tar.gz contained no regular files")
+	}
+	return nil
 }
 
 // extractDarwinXCFramework pulls the macos-arm64_x86_64 universal dylib out

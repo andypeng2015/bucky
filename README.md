@@ -66,7 +66,7 @@ $ go install github.com/ardanlabs/bucky@latest
 $ bucky --help
 ```
 
-Then fetch the whisper.cpp shared library bundle (xcframework on darwin, DLLs on windows; linux must build from source — see [INSTALL.md](./INSTALL.md)):
+Then fetch the whisper.cpp shared library bundle (xcframework on darwin, DLLs on windows, `.tar.gz` from [ardanlabs/bucky-builder](https://github.com/ardanlabs/bucky-builder) on linux):
 
 ```shell
 $ bucky install -lib ./lib
@@ -128,13 +128,13 @@ See [MODELS.md](./MODELS.md) for the recommended set with size / speed / quality
 
 ## Support
 
-Bucky uses the prebuilt whisper.cpp release artifacts where they exist; on Linux you build whisper.cpp from source (see [INSTALL.md](./INSTALL.md)).
+Bucky uses the prebuilt whisper.cpp release artifacts where they exist; Linux artifacts come from the [ardanlabs/bucky-builder](https://github.com/ardanlabs/bucky-builder) companion repo (whisper.cpp upstream publishes no Linux release).
 
-| OS      | CPU          | GPU            | Source                                  |
-| ------- | ------------ | -------------- | --------------------------------------- |
-| Linux   | amd64, arm64 | CUDA, Vulkan   | build from source (no upstream release) |
-| macOS   | arm64, amd64 | Metal          | `whisper-vX.Y.Z-xcframework.zip`        |
-| Windows | amd64        | CPU, CUDA 12   | `whisper-bin-x64.zip` / `-cublas-…`     |
+| OS      | CPU          | GPU                | Source                                                |
+| ------- | ------------ | ------------------ | ----------------------------------------------------- |
+| Linux   | amd64, arm64 | CUDA 12.9, Vulkan  | `whisper-vX.Y.Z-bin-ubuntu-{cpu,cuda,vulkan}-{x64,arm64}.tar.gz` (bucky-builder) |
+| macOS   | arm64, amd64 | Metal              | `whisper-vX.Y.Z-xcframework.zip` (upstream)           |
+| Windows | amd64        | CPU, CUDA 12       | `whisper-bin-x64.zip` / `-cublas-…` (upstream)        |
 
 Whenever there is a new release of whisper.cpp, the FFI struct mirrors and `pkg/download` matrix may need a refresh. The pinned version is captured in `pkg/download/`.
 

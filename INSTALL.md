@@ -55,9 +55,34 @@ matching CUDA 12.4 runtime installed on the host.
 
 ## Linux (amd64 / arm64)
 
-Upstream whisper.cpp does not publish prebuilt Linux binaries (as of
-v1.8.4). `bucky install` will refuse with a clear error directing you here.
-For now you must build whisper.cpp from source:
+```
+make build
+./bucky install -lib ./lib
+```
+
+Linux libraries are produced by the
+[`ardanlabs/bucky-builder`](https://github.com/ardanlabs/bucky-builder)
+companion repo (whisper.cpp upstream publishes no Linux release artifact
+at all). The builder re-runs hourly against new whisper.cpp tags and
+publishes six artifacts per release:
+
+| Backend | amd64 | arm64 |
+|---|---|---|
+| CPU      | `whisper-vX.Y.Z-bin-ubuntu-cpu-x64.tar.gz`    | `whisper-vX.Y.Z-bin-ubuntu-cpu-arm64.tar.gz`    |
+| CUDA 12.9| `whisper-vX.Y.Z-bin-ubuntu-cuda-x64.tar.gz`   | `whisper-vX.Y.Z-bin-ubuntu-cuda-arm64.tar.gz`   |
+| Vulkan   | `whisper-vX.Y.Z-bin-ubuntu-vulkan-x64.tar.gz` | `whisper-vX.Y.Z-bin-ubuntu-vulkan-arm64.tar.gz` |
+
+`bucky install` auto-detects CUDA via `nvidia-smi` and downloads the
+matching artifact. Pass `-p vulkan` to opt into the Vulkan build, or
+`-p cpu` to force the CPU bundle. CUDA arm64 targets Jetson Orin (sm_87);
+CUDA amd64 targets sm_86 + sm_89 (consumer Ampere / Ada GPUs).
+
+The tarball unpacks `libwhisper.so`, `libggml.so`, `libggml-base.so`,
+`libggml-cpu.so`, and (for cuda / vulkan variants) `libggml-cuda.so` /
+`libggml-vulkan.so` into `lib/`. RPATH is `$ORIGIN`, so the libraries are
+self-contained regardless of where you point `BUCKY_LIB`.
+
+If you'd rather build whisper.cpp yourself:
 
 ```
 git clone https://github.com/ggml-org/whisper.cpp.git
@@ -69,8 +94,3 @@ mkdir -p ../bucky/lib
 cp build/src/libwhisper.so ../bucky/lib/
 cp build/ggml/src/libggml*.so ../bucky/lib/
 ```
-
-Future versions of bucky may publish our own Linux bundles via a
-`bucky-builder` companion repo (mirroring how
-[`hybridgroup/llama-cpp-builder`](https://github.com/hybridgroup/llama-cpp-builder)
-backs yzma).

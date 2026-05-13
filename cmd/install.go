@@ -111,13 +111,15 @@ func runInstall(c *cli.Context) error {
 }
 
 // defaultProcessor picks a sensible default backend per OS, matching how
-// whisper.cpp ships its release artifacts.
+// whisper.cpp / bucky-builder ship release artifacts. CUDA is auto-selected
+// on linux + windows when nvidia-smi is on PATH; vulkan is never picked
+// automatically (users opt in with `-p vulkan`).
 func defaultProcessor(osInstall string, quiet bool) string {
 	switch osInstall {
 	case "darwin":
 		// The xcframework includes Metal so cpu and metal both resolve to it.
 		return "metal"
-	case "windows":
+	case "windows", "linux":
 		if cudaInstalled, cudaVersion := download.HasCUDA(); cudaInstalled {
 			if !quiet {
 				fmt.Printf("CUDA detected (version %s), using CUDA build\n", cudaVersion)

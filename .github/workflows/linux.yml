@@ -11,12 +11,13 @@ concurrency:
   cancel-in-progress: true
 
 # Linux note:
-# whisper.cpp does not publish a prebuilt Linux release artifact. `bucky
-# install` returns ErrLinuxNoPrebuilt by design (see pkg/download/download.go).
-# The Linux job therefore exercises static checks + build only; the
-# pkg/whisper FFI tests skip cleanly without BUCKY_LIB. Building whisper.cpp
-# from source in CI is documented in INSTALL.md but intentionally not run
-# here.
+# Linux whisper.cpp libraries are produced by ardanlabs/bucky-builder and
+# downloaded by `bucky install` like macOS / Windows. This CI job currently
+# only exercises static checks + build because hooking the install step in
+# requires bucky-builder to have published a release matching
+# download.DefaultWhisperVersion. Once that's true, mirror the macos.yml /
+# windows.yml steps (install -> set BUCKY_LIB -> model get -> tests ->
+# hello example).
 
 jobs:
   test:
