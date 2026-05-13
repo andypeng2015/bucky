@@ -91,17 +91,44 @@ func runWhisperTranscribe(c *cli.Context) error {
 	}
 	defer whisper.Free(ctx)
 
-	f, err := os.Open(audioPath)
+	samples, err := decodeAudioFile(audioPath)
 	if err != nil {
 		return err
+	}
+
+	wparams := buildTranscribeParams(c)
+
+	var refs whisper.StringRefs
+	if err := refs.SetLanguage(&wparams, c.String("lang")); err != nil {
+		return err
+	}
+	if err := refs.SetInitialPrompt(&wparams, c.String("prompt")); err != nil {
+		return err
+	}
+	defer refs.KeepAlive()
+
+	if err := whisper.Full(ctx, wparams, samples); err != nil {
+		return err
+	}
+
+	return printTranscribeResult(ctx, c.Bool("segments"))
+}
+
+func decodeAudioFile(audioPath string) ([]float32, error) {
+	f, err := os.Open(audioPath)
+	if err != nil {
+		return nil, err
 	}
 	defer f.Close()
 
 	samples, err := audio.Decode(f)
 	if err != nil {
-		return fmt.Errorf("audio.Decode: %w", err)
+		return nil, fmt.Errorf("audio.Decode: %w", err)
 	}
+	return samples, nil
+}
 
+func buildTranscribeParams(c *cli.Context) whisper.WhisperFullParams {
 	strategy := whisper.SamplingGreedy
 	if c.Int("beam") > 0 {
 		strategy = whisper.SamplingBeamSearch
@@ -120,21 +147,11 @@ func runWhisperTranscribe(c *cli.Context) error {
 	if !c.Bool("segments") {
 		wparams.NoTimestamps = 1
 	}
+	return wparams
+}
 
-	var refs whisper.StringRefs
-	if err := refs.SetLanguage(&wparams, c.String("lang")); err != nil {
-		return err
-	}
-	if err := refs.SetInitialPrompt(&wparams, c.String("prompt")); err != nil {
-		return err
-	}
-	defer refs.KeepAlive()
-
-	if err := whisper.Full(ctx, wparams, samples); err != nil {
-		return err
-	}
-
-	if c.Bool("segments") {
+func printTranscribeResult(ctx whisper.Context, segments bool) error {
+	if segments {
 		for i := int32(0); i < whisper.FullNSegments(ctx); i++ {
 			t0 := whisper.FullGetSegmentT0(ctx, i) * 10
 			t1 := whisper.FullGetSegmentT1(ctx, i) * 10

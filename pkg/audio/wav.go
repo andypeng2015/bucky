@@ -34,15 +34,7 @@ func DecodeWAV(r io.Reader) ([]float32, int, int, error) {
 		return nil, 0, 0, errors.New("audio: not a RIFF/WAVE file")
 	}
 
-	var (
-		fmtFound      bool
-		channels      uint16
-		sampleRate    uint32
-		bitsPerSample uint16
-		audioFormat   uint16
-		samples       []float32
-	)
-
+	var info wavInfo
 	for {
 		var sub struct {
 			Id   [4]byte
@@ -54,81 +46,114 @@ func DecodeWAV(r io.Reader) ([]float32, int, int, error) {
 			}
 			return nil, 0, 0, err
 		}
-
-		switch string(sub.Id[:]) {
-		case "fmt ":
-			var fmtChunk struct {
-				AudioFormat   uint16
-				NumChannels   uint16
-				SampleRate    uint32
-				ByteRate      uint32
-				BlockAlign    uint16
-				BitsPerSample uint16
-			}
-			if err := binary.Read(r, binary.LittleEndian, &fmtChunk); err != nil {
-				return nil, 0, 0, err
-			}
-			audioFormat = fmtChunk.AudioFormat
-			channels = fmtChunk.NumChannels
-			sampleRate = fmtChunk.SampleRate
-			bitsPerSample = fmtChunk.BitsPerSample
-
-			// WAVEFORMATEX / EXTENSIBLE adds extra bytes after the basic 16.
-			if extra := int64(sub.Size) - 16; extra > 0 {
-				skip := make([]byte, extra)
-				if _, err := io.ReadFull(r, skip); err != nil {
-					return nil, 0, 0, err
-				}
-				// For WAVE_FORMAT_EXTENSIBLE, the real format lives in the
-				// SubFormat GUID's first 16-bit field.
-				if audioFormat == wavFormatExtensible && len(skip) >= 24 {
-					audioFormat = binary.LittleEndian.Uint16(skip[8:10])
-				}
-			}
-			fmtFound = true
-
-		case "data":
-			if !fmtFound {
-				return nil, 0, 0, errors.New("audio: data chunk before fmt chunk")
-			}
-			data := make([]byte, sub.Size)
-			if _, err := io.ReadFull(r, data); err != nil {
-				return nil, 0, 0, err
-			}
-			s, err := decodeWAVData(data, audioFormat, bitsPerSample)
-			if err != nil {
-				return nil, 0, 0, err
-			}
-			samples = s
-			// WAV chunks are 2-byte aligned; consume an odd-length pad byte.
-			if sub.Size%2 == 1 {
-				var pad [1]byte
-				_, _ = io.ReadFull(r, pad[:])
-			}
-
-		default:
-			skip := make([]byte, sub.Size)
-			if _, err := io.ReadFull(r, skip); err != nil {
-				if errors.Is(err, io.EOF) {
-					break
-				}
-				return nil, 0, 0, err
-			}
-			if sub.Size%2 == 1 {
-				var pad [1]byte
-				_, _ = io.ReadFull(r, pad[:])
-			}
+		done, err := readWAVChunk(r, sub.Id, sub.Size, &info)
+		if err != nil {
+			return nil, 0, 0, err
 		}
-
-		if samples != nil {
+		if done {
 			break
 		}
 	}
 
-	if samples == nil {
+	if info.samples == nil {
 		return nil, 0, 0, errors.New("audio: WAV had no data chunk")
 	}
-	return samples, int(sampleRate), int(channels), nil
+	return info.samples, int(info.sampleRate), int(info.channels), nil
+}
+
+// wavInfo accumulates parsed fmt and data chunk results across the chunk
+// scan loop in DecodeWAV.
+type wavInfo struct {
+	fmtFound      bool
+	audioFormat   uint16
+	channels      uint16
+	sampleRate    uint32
+	bitsPerSample uint16
+	samples       []float32
+}
+
+// readWAVChunk dispatches a single sub-chunk and reports whether DecodeWAV
+// should stop scanning (true once data has been read).
+func readWAVChunk(r io.Reader, id [4]byte, size uint32, info *wavInfo) (bool, error) {
+	switch string(id[:]) {
+	case "fmt ":
+		return false, readWAVFmt(r, size, info)
+	case "data":
+		return readWAVData(r, size, info)
+	default:
+		return false, skipWAVChunk(r, size)
+	}
+}
+
+func readWAVFmt(r io.Reader, size uint32, info *wavInfo) error {
+	var fmtChunk struct {
+		AudioFormat   uint16
+		NumChannels   uint16
+		SampleRate    uint32
+		ByteRate      uint32
+		BlockAlign    uint16
+		BitsPerSample uint16
+	}
+	if err := binary.Read(r, binary.LittleEndian, &fmtChunk); err != nil {
+		return err
+	}
+	info.audioFormat = fmtChunk.AudioFormat
+	info.channels = fmtChunk.NumChannels
+	info.sampleRate = fmtChunk.SampleRate
+	info.bitsPerSample = fmtChunk.BitsPerSample
+
+	// WAVEFORMATEX / EXTENSIBLE adds extra bytes after the basic 16.
+	if extra := int64(size) - 16; extra > 0 {
+		skip := make([]byte, extra)
+		if _, err := io.ReadFull(r, skip); err != nil {
+			return err
+		}
+		// For WAVE_FORMAT_EXTENSIBLE, the real format lives in the
+		// SubFormat GUID's first 16-bit field.
+		if info.audioFormat == wavFormatExtensible && len(skip) >= 24 {
+			info.audioFormat = binary.LittleEndian.Uint16(skip[8:10])
+		}
+	}
+	info.fmtFound = true
+	return nil
+}
+
+func readWAVData(r io.Reader, size uint32, info *wavInfo) (bool, error) {
+	if !info.fmtFound {
+		return false, errors.New("audio: data chunk before fmt chunk")
+	}
+	data := make([]byte, size)
+	if _, err := io.ReadFull(r, data); err != nil {
+		return false, err
+	}
+	s, err := decodeWAVData(data, info.audioFormat, info.bitsPerSample)
+	if err != nil {
+		return false, err
+	}
+	info.samples = s
+	// WAV chunks are 2-byte aligned; consume an odd-length pad byte.
+	if size%2 == 1 {
+		var pad [1]byte
+		_, _ = io.ReadFull(r, pad[:])
+	}
+	return true, nil
+}
+
+func skipWAVChunk(r io.Reader, size uint32) error {
+	skip := make([]byte, size)
+	if _, err := io.ReadFull(r, skip); err != nil {
+		// Unknown trailing chunk truncated at EOF: treat as end of file
+		// rather than a hard error.
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		return err
+	}
+	if size%2 == 1 {
+		var pad [1]byte
+		_, _ = io.ReadFull(r, pad[:])
+	}
+	return nil
 }
 
 // decodeWAVData converts the raw bytes of a WAV "data" chunk into float32

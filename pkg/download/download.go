@@ -295,60 +295,79 @@ func extractLinuxTarGz(tgzPath, dest string) error {
 		if err != nil {
 			return fmt.Errorf("tar read: %w", err)
 		}
-
-		// Strip the leading whisper-<TAG>/ component. Skip top-level
-		// directory entries (we recreate dirs as needed).
-		name := strings.TrimLeft(hdr.Name, "./")
-		if i := strings.Index(name, "/"); i >= 0 {
-			name = name[i+1:]
-		} else {
-			// Top-level entry (the whisper-<TAG> dir itself, or a stray
-			// loose file). Skip directories; treat loose files as flat.
-			if hdr.Typeflag == tar.TypeDir {
-				continue
-			}
+		wrote, err := writeTarEntry(hdr, tr, dest)
+		if err != nil {
+			return err
 		}
-		if name == "" {
-			continue
-		}
-
-		target := filepath.Join(dest, name)
-		switch hdr.Typeflag {
-		case tar.TypeDir:
-			if err := os.MkdirAll(target, 0o755); err != nil {
-				return fmt.Errorf("mkdir %s: %w", target, err)
-			}
-		case tar.TypeReg:
-			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-				return fmt.Errorf("mkdir parent of %s: %w", target, err)
-			}
-			out, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR|os.O_TRUNC, os.FileMode(hdr.Mode)&0o777)
-			if err != nil {
-				return fmt.Errorf("create %s: %w", target, err)
-			}
-			if _, err := io.Copy(out, tr); err != nil {
-				out.Close()
-				return fmt.Errorf("write %s: %w", target, err)
-			}
-			out.Close()
+		if wrote {
 			any = true
-		case tar.TypeSymlink:
-			// Library SONAME symlinks (e.g. libwhisper.so -> libwhisper.so.1)
-			// must be preserved or dlopen will fail at runtime.
-			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-				return fmt.Errorf("mkdir parent of %s: %w", target, err)
-			}
-			_ = os.Remove(target) // overwrite if present
-			if err := os.Symlink(hdr.Linkname, target); err != nil {
-				return fmt.Errorf("symlink %s -> %s: %w", target, hdr.Linkname, err)
-			}
-		default:
-			// Skip anything we don't understand (hardlinks, devices, fifos).
 		}
 	}
 
 	if !any {
 		return errors.New("linux tar.gz contained no regular files")
+	}
+	return nil
+}
+
+// writeTarEntry strips the leading whisper-<TAG>/ path component and writes
+// the entry to dest. Returns true if a regular file was written. Anything we
+// don't understand (hardlinks, devices, fifos) is silently skipped.
+func writeTarEntry(hdr *tar.Header, tr *tar.Reader, dest string) (bool, error) {
+	// Strip the leading whisper-<TAG>/ component. Top-level dir entries
+	// are skipped; top-level loose files are treated as flat.
+	name := strings.TrimLeft(hdr.Name, "./")
+	if i := strings.Index(name, "/"); i >= 0 {
+		name = name[i+1:]
+	} else if hdr.Typeflag == tar.TypeDir {
+		return false, nil
+	}
+	if name == "" {
+		return false, nil
+	}
+
+	target := filepath.Join(dest, name)
+	switch hdr.Typeflag {
+	case tar.TypeDir:
+		if err := os.MkdirAll(target, 0o755); err != nil {
+			return false, fmt.Errorf("mkdir %s: %w", target, err)
+		}
+		return false, nil
+	case tar.TypeReg:
+		if err := writeTarRegular(target, hdr, tr); err != nil {
+			return false, err
+		}
+		return true, nil
+	case tar.TypeSymlink:
+		// Library SONAME symlinks (e.g. libwhisper.so -> libwhisper.so.1)
+		// must be preserved or dlopen will fail at runtime.
+		return false, writeTarSymlink(target, hdr)
+	}
+	return false, nil
+}
+
+func writeTarRegular(target string, hdr *tar.Header, tr *tar.Reader) error {
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		return fmt.Errorf("mkdir parent of %s: %w", target, err)
+	}
+	out, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR|os.O_TRUNC, os.FileMode(hdr.Mode)&0o777)
+	if err != nil {
+		return fmt.Errorf("create %s: %w", target, err)
+	}
+	if _, err := io.Copy(out, tr); err != nil {
+		out.Close()
+		return fmt.Errorf("write %s: %w", target, err)
+	}
+	return out.Close()
+}
+
+func writeTarSymlink(target string, hdr *tar.Header) error {
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		return fmt.Errorf("mkdir parent of %s: %w", target, err)
+	}
+	_ = os.Remove(target) // overwrite if present
+	if err := os.Symlink(hdr.Linkname, target); err != nil {
+		return fmt.Errorf("symlink %s -> %s: %w", target, hdr.Linkname, err)
 	}
 	return nil
 }
