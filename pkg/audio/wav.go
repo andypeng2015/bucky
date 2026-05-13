@@ -45,7 +45,7 @@ func DecodeWAVInto(dst []float32, r io.Reader) ([]float32, int, int, error) {
 	info := wavInfo{dst: dst}
 	for {
 		var sub struct {
-			Id   [4]byte
+			ID   [4]byte
 			Size uint32
 		}
 		if err := binary.Read(r, binary.LittleEndian, &sub); err != nil {
@@ -54,7 +54,7 @@ func DecodeWAVInto(dst []float32, r io.Reader) ([]float32, int, int, error) {
 			}
 			return nil, 0, 0, err
 		}
-		done, err := readWAVChunk(r, sub.Id, sub.Size, &info)
+		done, err := readWAVChunk(r, sub.ID, sub.Size, &info)
 		if err != nil {
 			return nil, 0, 0, err
 		}
@@ -185,7 +185,7 @@ func decodeWAVData(dst []float32, data []byte, audioFormat, bitsPerSample uint16
 		case 16:
 			n := len(data) / 2
 			out := wavOutputBuf(dst, n)
-			for i := 0; i < n; i++ {
+			for i := range n {
 				v := int16(binary.LittleEndian.Uint16(data[i*2:]))
 				out[i] = float32(v) / 32768.0
 			}
@@ -193,7 +193,7 @@ func decodeWAVData(dst []float32, data []byte, audioFormat, bitsPerSample uint16
 		case 24:
 			n := len(data) / 3
 			out := wavOutputBuf(dst, n)
-			for i := 0; i < n; i++ {
+			for i := range n {
 				b0 := uint32(data[i*3])
 				b1 := uint32(data[i*3+1])
 				b2 := uint32(data[i*3+2])
@@ -207,7 +207,7 @@ func decodeWAVData(dst []float32, data []byte, audioFormat, bitsPerSample uint16
 		case 32:
 			n := len(data) / 4
 			out := wavOutputBuf(dst, n)
-			for i := 0; i < n; i++ {
+			for i := range n {
 				v := int32(binary.LittleEndian.Uint32(data[i*4:]))
 				out[i] = float32(v) / 2147483648.0
 			}
@@ -217,7 +217,7 @@ func decodeWAVData(dst []float32, data []byte, audioFormat, bitsPerSample uint16
 		if bitsPerSample == 32 {
 			n := len(data) / 4
 			out := wavOutputBuf(dst, n)
-			for i := 0; i < n; i++ {
+			for i := range n {
 				bits := binary.LittleEndian.Uint32(data[i*4:])
 				out[i] = math.Float32frombits(bits)
 			}

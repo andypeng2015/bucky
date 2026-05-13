@@ -25,7 +25,7 @@ func DecodeMP3(r io.Reader) ([]float32, int, int, error) {
 
 	n := len(raw) / 2
 	out := make([]float32, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		v := int16(binary.LittleEndian.Uint16(raw[i*2:]))
 		out[i] = float32(v) / 32768.0
 	}

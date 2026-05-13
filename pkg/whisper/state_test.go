@@ -17,7 +17,7 @@ func TestFullWithState(t *testing.T) {
 	modelPath := testModelFileName(t)
 	audioPath := testAudioFileName(t)
 
-	cparams := ContextDefaultParams()
+	cparams := testContextDefaultParams(t)
 	ctx, err := InitFromFileWithParams(modelPath, cparams)
 	if err != nil {
 		t.Fatalf("InitFromFileWithParams: %v", err)
@@ -53,7 +53,7 @@ func TestFullWithState(t *testing.T) {
 		t.Fatalf("FullNSegments = %d, want > 0", wantN)
 	}
 	var wantSb strings.Builder
-	for i := int32(0); i < wantN; i++ {
+	for i := range wantN {
 		wantSb.WriteString(FullGetSegmentText(ctx, i))
 	}
 	wantText := wantSb.String()
@@ -73,7 +73,7 @@ func TestFullWithState(t *testing.T) {
 		t.Errorf("FullNSegmentsFromState = %d, want %d (matches default-state)", gotN, wantN)
 	}
 	var gotSb strings.Builder
-	for i := int32(0); i < gotN; i++ {
+	for i := range gotN {
 		gotSb.WriteString(FullGetSegmentTextFromState(state, i))
 	}
 	gotText := gotSb.String()

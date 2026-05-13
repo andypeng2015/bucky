@@ -37,6 +37,11 @@ func main() {
 	}
 
 	cparams := whisper.ContextDefaultParams()
+	// Honor BUCKY_USE_GPU=0 so this example works against the CPU-only
+	// Linux artifacts (which assert when use_gpu=1 with no GPU backend).
+	if os.Getenv("BUCKY_USE_GPU") == "0" {
+		cparams.UseGPU = 0
+	}
 	ctx, err := whisper.InitFromFileWithParams(modelPath, cparams)
 	if err != nil {
 		log.Fatalf("InitFromFileWithParams: %v", err)

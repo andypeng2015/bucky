@@ -24,13 +24,32 @@ build:
 install:
 	go install .
 
+lint:
+	go vet ./...
+	staticcheck -checks=all ./...
+
+vuln-check:
+	govulncheck ./...
+
+diff:
+	go fix -diff ./...
+
 # make test runs all package tests. The pkg/whisper tests require
 # BUCKY_LIB and BUCKY_TEST_MODEL/AUDIO to be set; without them they skip.
-test:
+test-only:
 	export BUCKY_LIB=$(BUCKY_LIB) && \
 	export BUCKY_TEST_MODEL=$(MODELS_DIR)/ggml-tiny.bin && \
 	export BUCKY_TEST_AUDIO=$(MAKEFILE_DIR)samples/jfk.wav && \
 	go test -count=1 ./...
+
+test: test-only lint vuln-check diff
+
+tidy:
+	go mod tidy
+
+deps-upgrade:
+	go get -u -v ./...
+	go mod tidy
 
 # make hello runs the smallest possible bucky example end-to-end.
 hello:

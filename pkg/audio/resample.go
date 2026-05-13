@@ -10,9 +10,9 @@ func DownmixToMono(samples []float32, channels int) []float32 {
 	frames := len(samples) / channels
 	out := make([]float32, frames)
 	inv := 1.0 / float32(channels)
-	for i := 0; i < frames; i++ {
+	for i := range frames {
 		var sum float32
-		for c := 0; c < channels; c++ {
+		for c := range channels {
 			sum += samples[i*channels+c]
 		}
 		out[i] = sum * inv
@@ -32,7 +32,7 @@ func ResampleLinear(samples []float32, inRate, outRate int) []float32 {
 	ratio := float64(inRate) / float64(outRate)
 	outN := int(float64(len(samples)) / ratio)
 	out := make([]float32, outN)
-	for i := 0; i < outN; i++ {
+	for i := range outN {
 		pos := float64(i) * ratio
 		idx := int(pos)
 		frac := float32(pos - float64(idx))

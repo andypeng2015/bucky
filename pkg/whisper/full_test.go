@@ -13,7 +13,7 @@ func TestFullTranscribe(t *testing.T) {
 	modelPath := testModelFileName(t)
 	audioPath := testAudioFileName(t)
 
-	cparams := ContextDefaultParams()
+	cparams := testContextDefaultParams(t)
 	ctx, err := InitFromFileWithParams(modelPath, cparams)
 	if err != nil {
 		t.Fatalf("InitFromFileWithParams: %v", err)
@@ -50,7 +50,7 @@ func TestFullTranscribe(t *testing.T) {
 	}
 
 	var sb strings.Builder
-	for i := int32(0); i < n; i++ {
+	for i := range n {
 		sb.WriteString(FullGetSegmentText(ctx, i))
 	}
 	got := strings.ToLower(sb.String())

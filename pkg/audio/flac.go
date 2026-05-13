@@ -40,8 +40,8 @@ func DecodeFLAC(r io.Reader) ([]float32, int, int, error) {
 		// Each subframe corresponds to one channel; samples are aligned by
 		// position. Interleave into the output slice.
 		nSamples := frame.Subframes[0].NSamples
-		for s := 0; s < nSamples; s++ {
-			for c := 0; c < channels; c++ {
+		for s := range nSamples {
+			for c := range channels {
 				v := frame.Subframes[c].Samples[s]
 				out = append(out, float32(v)/scale)
 			}
