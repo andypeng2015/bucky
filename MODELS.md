@@ -1,8 +1,30 @@
 # Whisper Models
 
 Bucky loads any GGML-format whisper model. The official set lives at
-<https://huggingface.co/ggerganov/whisper.cpp>. Download the `.bin` files
-directly with `curl` (or use `make download-models`).
+<https://huggingface.co/ggerganov/whisper.cpp>. Use `bucky model get`
+(see below), `make download-models`, or download the `.bin` files
+directly with `curl`.
+
+## bucky model commands
+
+```sh
+bucky model list                        # show the bundled catalog
+bucky model get tiny                    # → ~/models/ggml-tiny.bin
+bucky model get -o /tmp/m base.en       # custom output directory
+bucky model get -u https://example.com/foo.bin -o ~/models   # arbitrary URL
+bucky model get silero-vad              # VAD model for whisper VAD pipeline
+bucky model info -m ~/models/ggml-tiny.bin   # print model accessors
+```
+
+`bucky model get <name>` resolves a short name (or `ggml-<name>.bin`
+filename) against the bundled catalog of well-known whisper models. Pass
+`-u <url>` to pull from any URL accepted by `hashicorp/go-getter`
+(`https://`, `file://`, `s3://`, `git::`, …). Pass `-y` to skip the
+"create directory?" prompt for scripted use.
+
+`bucky model info` opens a model file via `pkg/whisper` and prints its
+type, vocab size, layer counts, and multilingual flag — handy for
+sanity-checking a download or comparing variants.
 
 ## Recommended set
 
