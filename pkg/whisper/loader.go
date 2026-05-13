@@ -72,6 +72,15 @@ func Load(path string) error {
 		return err
 	}
 
+	// Trigger ggml backend self-registration. Required when libwhisper was
+	// built with -DGGML_BACKEND_DL=ON (e.g. bucky-builder's Linux
+	// artifacts), where backends ship as separate libggml-*.so files that
+	// don't auto-register on libwhisper load. No-op on static builds (the
+	// upstream macOS xcframework and Windows zip).
+	if err := ggmlBackendLoadAllFromPath(path); err != nil {
+		return fmt.Errorf("ggml_backend_load_all_from_path: %w", err)
+	}
+
 	return nil
 }
 
