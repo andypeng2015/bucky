@@ -1,0 +1,68 @@
+name: Linux
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Linux note:
+# Linux whisper.cpp libraries are produced by ardanlabs/bucky-builder and
+# downloaded by `bucky install` like macOS / Windows. This CI job currently
+# only exercises static checks + build because hooking the install step in
+# requires bucky-builder to have published a release matching
+# download.DefaultWhisperVersion. Once that's true, mirror the macos.yml /
+# windows.yml steps (install -> set BUCKY_LIB -> model get -> tests ->
+# hello example).
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: gofmt
+        run: |
+          out=$(gofmt -s -d .)
+          if [ -n "$out" ]; then
+            echo "::error::gofmt -s reported diffs:"
+            echo "$out"
+            exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: Install static analysis tools
+        run: go install honnef.co/go/tools/cmd/staticcheck@latest
+
+      - name: staticcheck
+        run: staticcheck ./...
+
+      - name: Build all
+        run: go build ./...
+
+      - name: Build examples
+        run: |
+          set -e
+          for dir in ./examples/*/; do
+            if [ -f "$dir/main.go" ]; then
+              echo "Building $dir..."
+              go build -o /dev/null "$dir"
+            fi
+          done
+
+      - name: Run unit tests
+        # pkg/whisper FFI tests skip without BUCKY_LIB; pkg/audio /
+        # pkg/loader / pkg/download still run.
+        run: go test -count=1 ./...
