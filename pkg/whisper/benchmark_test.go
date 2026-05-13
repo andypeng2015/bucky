@@ -42,6 +42,11 @@ func BenchmarkFullJFK(b *testing.B) {
 	}
 
 	cparams := ContextDefaultParams()
+	if os.Getenv("BUCKY_USE_GPU") == "0" {
+		// CPU-only Linux artifacts assert when use_gpu=1; see
+		// helpers_test.go testContextDefaultParams for the why.
+		cparams.UseGPU = 0
+	}
 	ctx, err := InitFromFileWithParams(modelPath, cparams)
 	if err != nil {
 		b.Fatalf("InitFromFileWithParams: %v", err)

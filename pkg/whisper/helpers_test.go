@@ -48,3 +48,19 @@ func testAudioFileName(t *testing.T) string {
 	}
 	return audio
 }
+
+// testContextDefaultParams returns the C library's default context params
+// with one CI-friendly tweak: when BUCKY_USE_GPU=0 is set in the environment
+// it forces UseGPU off. The bucky-builder CPU-only Linux artifacts still
+// have GPU init scaffolding compiled in but no GPU backend registered, so
+// the upstream default (use_gpu=1) makes ggml_backend_dev_init assert with
+// device==NULL. macOS and the cuda/vulkan Linux artifacts have a real GPU
+// backend so the env var is unset there and use_gpu stays at its default.
+func testContextDefaultParams(t *testing.T) ContextParams {
+	t.Helper()
+	p := ContextDefaultParams()
+	if os.Getenv("BUCKY_USE_GPU") == "0" {
+		p.UseGPU = 0
+	}
+	return p
+}

@@ -13,7 +13,7 @@ func TestFullTranscribe(t *testing.T) {
 	modelPath := testModelFileName(t)
 	audioPath := testAudioFileName(t)
 
-	cparams := ContextDefaultParams()
+	cparams := testContextDefaultParams(t)
 	ctx, err := InitFromFileWithParams(modelPath, cparams)
 	if err != nil {
 		t.Fatalf("InitFromFileWithParams: %v", err)

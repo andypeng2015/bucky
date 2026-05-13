@@ -96,13 +96,22 @@ jobs:
           bucky model get -y --show-progress=false -o $GITHUB_WORKSPACE/models silero-vad
 
       - name: Run unit tests
+        # BUCKY_USE_GPU=0 forces UseGPU off in the test setup helpers. The
+        # bucky-builder CPU-only artifacts compile in the GPU init
+        # scaffolding but register no GPU backend, so the upstream default
+        # of use_gpu=1 makes ggml_backend_dev_init assert with device==NULL.
+        # macOS doesn't need this (Metal is in the xcframework). When this
+        # CI starts using the cuda/vulkan artifacts, drop the env var.
         run: |
           export BUCKY_TEST_MODEL=$GITHUB_WORKSPACE/models/ggml-tiny.bin
           export BUCKY_TEST_AUDIO=$GITHUB_WORKSPACE/samples/jfk.wav
           export BUCKY_VAD_MODEL=$GITHUB_WORKSPACE/models/ggml-silero-v5.1.2.bin
+          export BUCKY_USE_GPU=0
           go test -count=1 ./...
 
       - name: Run hello example
+        # BUCKY_USE_GPU=0: see explanation on the unit-tests step above.
         run: |
           export BUCKY_TEST_MODEL=$GITHUB_WORKSPACE/models/ggml-tiny.bin
+          export BUCKY_USE_GPU=0
           go run ./examples/hello samples/jfk.wav
