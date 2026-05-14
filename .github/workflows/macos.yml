@@ -15,7 +15,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Install Go
         uses: actions/setup-go@v6
@@ -48,7 +48,7 @@ jobs:
 
       - name: Cache test models
         id: cache-models
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: models
           key: ${{ runner.os }}-bucky-models-v1
