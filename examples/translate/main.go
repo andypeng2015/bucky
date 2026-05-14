@@ -3,7 +3,9 @@
 // Usage:
 //
 //	BUCKY_LIB=./lib BUCKY_TEST_MODEL=$HOME/models/ggml-tiny.bin \
-//	    go run ./examples/translate samples/spanish.flac
+//	    go run ./examples/translate \
+//			-lang es \
+//			samples/spanish.mp3
 package main
 
 import (

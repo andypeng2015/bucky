@@ -51,11 +51,8 @@ deps-upgrade:
 	go get -u -v ./...
 	go mod tidy
 
-# make hello runs the smallest possible bucky example end-to-end.
-hello:
-	export BUCKY_LIB=$(BUCKY_LIB) && \
-	export BUCKY_TEST_MODEL=$(MODELS_DIR)/ggml-tiny.bin && \
-	go run ./examples/hello samples/jfk.wav
+# ==============================================================================
+# Profile and Benchmarks
 
 # make bench runs BenchmarkFullJFK against BUCKY_BENCH_MODEL (defaults to
 # ggml-tiny). Override BUCKY_BENCH_MODEL=$(MODELS_DIR)/ggml-base.en.bin to
@@ -117,10 +114,41 @@ profile-audio:
 # make profile runs both profilers in sequence.
 profile: profile-whisper profile-audio
 
-vet:
-	go vet ./...
+# ==============================================================================
+# Examples
 
-fmt:
-	gofmt -s -w .
+# make hello runs the smallest possible bucky example end-to-end.
+example-hello:
+	export BUCKY_LIB=$(BUCKY_LIB) && \
+	export BUCKY_TEST_MODEL=$(MODELS_DIR)/ggml-tiny.bin && \
+	CGO_ENABLED=0 go run ./examples/hello samples/jfk.wav
 
-.PHONY: download-models clean-whisper.cpp download-whisper.cpp build install test hello bench profile profile-whisper profile-audio vet fmt
+example-segments:
+	export BUCKY_LIB=$(BUCKY_LIB) && \
+	export BUCKY_TEST_MODEL=$(MODELS_DIR)/ggml-tiny.bin && \
+	CGO_ENABLED=0 go run ./examples/segments samples/jfk.wav
+
+example-streaming:
+	export BUCKY_LIB=$(BUCKY_LIB) && \
+	export BUCKY_TEST_MODEL=$(MODELS_DIR)/ggml-tiny.bin && \
+	CGO_ENABLED=0 go run ./examples/streaming samples/jfk.wav
+
+example-transcribe:
+	export BUCKY_LIB=$(BUCKY_LIB) && \
+	export BUCKY_TEST_MODEL=$(MODELS_DIR)/ggml-tiny.bin && \
+	CGO_ENABLED=0 go run ./examples/transcribe \
+		-lang es \
+		-prompt "Woman Talking" \
+		samples/spanish.mp3
+
+example-translate:
+	export BUCKY_LIB=$(BUCKY_LIB) && \
+	export BUCKY_TEST_MODEL=$(MODELS_DIR)/ggml-tiny.bin && \
+	CGO_ENABLED=0 go run ./examples/translate \
+		-lang es \
+		samples/spanish.mp3
+
+example-words:
+	export BUCKY_LIB=$(BUCKY_LIB) && \
+	export BUCKY_TEST_MODEL=$(MODELS_DIR)/ggml-tiny.bin && \
+	CGO_ENABLED=0 go run ./examples/words samples/jfk.wav

@@ -6,9 +6,9 @@
 //
 //	BUCKY_LIB=./lib BUCKY_TEST_MODEL=$HOME/models/ggml-tiny.bin \
 //	    go run ./examples/transcribe \
-//	        -lang en \
-//	        -prompt "JFK speech" \
-//	        samples/jfk.wav
+//	        -lang es \
+//	        -prompt "Woman Talking" \
+//	        samples/spanish.mp3
 package main
 
 import (
