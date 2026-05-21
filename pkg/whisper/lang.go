@@ -23,6 +23,14 @@ var (
 	//                                int   n_threads,
 	//                              float * lang_probs);
 	langAutoDetectFunc ffi.Fun
+
+	// WHISPER_API int whisper_lang_auto_detect_with_state(
+	//             struct whisper_context * ctx,
+	//               struct whisper_state * state,
+	//                                int   offset_ms,
+	//                                int   n_threads,
+	//                              float * lang_probs);
+	langAutoDetectWithStateFunc ffi.Fun
 )
 
 func loadLangFuncs(lib ffi.Lib) error {
@@ -44,6 +52,12 @@ func loadLangFuncs(lib ffi.Lib) error {
 		&ffi.TypeSint32, &ffi.TypePointer, &ffi.TypeSint32, &ffi.TypeSint32, &ffi.TypePointer,
 	); err != nil {
 		return loadError("whisper_lang_auto_detect", err)
+	}
+
+	if langAutoDetectWithStateFunc, err = lib.Prep("whisper_lang_auto_detect_with_state",
+		&ffi.TypeSint32, &ffi.TypePointer, &ffi.TypePointer, &ffi.TypeSint32, &ffi.TypeSint32, &ffi.TypePointer,
+	); err != nil {
+		return loadError("whisper_lang_auto_detect_with_state", err)
 	}
 
 	return nil
@@ -97,6 +111,32 @@ func LangAutoDetect(ctx Context, offsetMs, nThreads int32, probs []float32) int3
 	langAutoDetectFunc.Call(
 		unsafe.Pointer(&result),
 		unsafe.Pointer(&ctx),
+		unsafe.Pointer(&offsetMs),
+		unsafe.Pointer(&nThreads),
+		unsafe.Pointer(&probsPtr),
+	)
+	return int32(result)
+}
+
+// LangAutoDetectWithState is the explicit-state variant of LangAutoDetect.
+// It reads the mel spectrogram from the supplied state rather than the
+// context's default state, so it can run concurrently with other
+// language-detect / transcribe calls that own their own State.
+//
+// FullWithState must have populated state's mel before this call.
+func LangAutoDetectWithState(ctx Context, state State, offsetMs, nThreads int32, probs []float32) int32 {
+	if ctx == 0 || state == 0 {
+		return -1
+	}
+	var probsPtr unsafe.Pointer
+	if len(probs) > 0 {
+		probsPtr = unsafe.Pointer(unsafe.SliceData(probs))
+	}
+	var result ffi.Arg
+	langAutoDetectWithStateFunc.Call(
+		unsafe.Pointer(&result),
+		unsafe.Pointer(&ctx),
+		unsafe.Pointer(&state),
 		unsafe.Pointer(&offsetMs),
 		unsafe.Pointer(&nThreads),
 		unsafe.Pointer(&probsPtr),
