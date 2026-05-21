@@ -3,6 +3,7 @@ module github.com/ardanlabs/bucky
 go 1.26.0
 
 require (
+	github.com/ebitengine/purego v0.10.0
 	github.com/hajimehoshi/go-mp3 v0.3.4
 	github.com/hashicorp/go-getter v1.8.6
 	github.com/jupiterrider/ffi v0.7.0
@@ -45,7 +46,6 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
-	github.com/ebitengine/purego v0.10.0 // indirect
 	github.com/envoyproxy/go-control-plane/envoy v1.37.0 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.3.3 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect

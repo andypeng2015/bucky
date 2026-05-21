@@ -32,6 +32,10 @@ func Load(path string) error {
 		return err
 	}
 
+	if err := loadLogFuncs(lib); err != nil {
+		return err
+	}
+
 	if err := loadContextFuncs(lib); err != nil {
 		return err
 	}
