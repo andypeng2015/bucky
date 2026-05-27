@@ -84,6 +84,10 @@ func runWhisperTranscribe(c *cli.Context) error {
 		return fmt.Errorf("whisper.Load: %w", err)
 	}
 
+	if err := whisper.Init(libPath); err != nil {
+		return fmt.Errorf("whisper.Init: %w", err)
+	}
+
 	cparams := whisper.ContextDefaultParams()
 	ctx, err := whisper.InitFromFileWithParams(modelPath, cparams)
 	if err != nil {

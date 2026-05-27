@@ -23,7 +23,12 @@ func BenchmarkFullJFK(b *testing.B) {
 		b.Skip("BUCKY_LIB not set; skipping benchmark")
 	}
 
-	loadOnce.Do(func() { loadErr = Load(libPath) })
+	loadOnce.Do(func() {
+		if loadErr = Load(libPath); loadErr != nil {
+			return
+		}
+		loadErr = Init(libPath)
+	})
 	if loadErr != nil {
 		b.Fatalf("Load: %v", loadErr)
 	}

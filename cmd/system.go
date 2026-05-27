@@ -46,6 +46,10 @@ func runSystemInfo(c *cli.Context) error {
 		return fmt.Errorf("failed to load whisper.cpp from %s: %w", libPath, err)
 	}
 
+	if err := whisper.Init(libPath); err != nil {
+		return fmt.Errorf("failed to init whisper.cpp from %s: %w", libPath, err)
+	}
+
 	fmt.Println("version:", whisper.Version())
 	fmt.Println()
 	fmt.Println("-- Whisper system info --")

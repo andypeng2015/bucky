@@ -220,6 +220,10 @@ func main() {
 		log.Fatalf("whisper.Load: %v", err)
 	}
 
+	if err := whisper.Init(libPath); err != nil {
+		log.Fatalf("whisper.Init: %v", err)
+	}
+
 	cparams := whisper.ContextDefaultParams()
 	ctx, err := whisper.InitFromFileWithParams(modelPath, cparams)
 	if err != nil {

@@ -36,6 +36,10 @@ func main() {
 		log.Fatalf("whisper.Load: %v", err)
 	}
 
+	if err := whisper.Init(libPath); err != nil {
+		log.Fatalf("whisper.Init: %v", err)
+	}
+
 	cparams := whisper.ContextDefaultParams()
 	// Honor BUCKY_USE_GPU=0 so this example works against the CPU-only
 	// Linux artifacts (which assert when use_gpu=1 with no GPU backend).

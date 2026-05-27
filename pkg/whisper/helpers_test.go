@@ -18,7 +18,10 @@ func testSetup(t *testing.T) {
 	}
 
 	loadOnce.Do(func() {
-		loadErr = Load(libPath)
+		if loadErr = Load(libPath); loadErr != nil {
+			return
+		}
+		loadErr = Init(libPath)
 	})
 	if loadErr != nil {
 		t.Fatalf("failed to load whisper.cpp from %s: %v", libPath, loadErr)

@@ -159,6 +159,10 @@ func runModelInfo(c *cli.Context) error {
 		return fmt.Errorf("load whisper library: %w", err)
 	}
 
+	if err := whisper.Init(libPath); err != nil {
+		return fmt.Errorf("init whisper library: %w", err)
+	}
+
 	cparams := whisper.ContextDefaultParams()
 	ctx, err := whisper.InitFromFileWithParams(model, cparams)
 	if err != nil {
