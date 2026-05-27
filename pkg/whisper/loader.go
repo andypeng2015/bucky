@@ -16,6 +16,10 @@ func LibPath() string {
 // Load loads the shared whisper.cpp library from the specified path and
 // resolves all FFI function pointers used by this package.
 //
+// Load does NOT register ggml backends. Call Init after Load (and before
+// the first model load) to populate the process-wide ggml backend
+// registry from the same directory.
+//
 // The whisper.cpp xcframework on darwin bundles ggml inside libwhisper, so a
 // single library load is sufficient. On windows, ggml-base/ggml-cpu/ggml DLLs
 // live next to whisper.dll and the OS resolves them automatically when
@@ -76,11 +80,23 @@ func Load(path string) error {
 		return err
 	}
 
-	// Trigger ggml backend self-registration. Required when libwhisper was
-	// built with -DGGML_BACKEND_DL=ON (e.g. bucky-builder's Linux
-	// artifacts), where backends ship as separate libggml-*.so files that
-	// don't auto-register on libwhisper load. No-op on static builds (the
-	// upstream macOS xcframework and Windows zip).
+	return nil
+}
+
+// Init registers every ggml backend shared library found under path with
+// the process-wide ggml registry. Required when libwhisper was built with
+// -DGGML_BACKEND_DL=ON (e.g. bucky-builder's Linux artifacts), where
+// backends ship as separate libggml-*.so files that don't auto-register on
+// libwhisper load. No-op on static builds (the upstream macOS xcframework
+// and Windows zip) because the underlying ggml symbol is not exported.
+//
+// Call Init AFTER Load and BEFORE the first model load.
+//
+// Callers running whisper alongside another ggml-based library (e.g.
+// llama.cpp via yzma) that already populated the registry SHOULD skip
+// this call to avoid registering the same physical device twice. Use
+// llama.GGMLBackendDeviceCount() > 0 as the sentinel in that case.
+func Init(path string) error {
 	if err := ggmlBackendLoadAllFromPath(path); err != nil {
 		return fmt.Errorf("ggml_backend_load_all_from_path: %w", err)
 	}
