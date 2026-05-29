@@ -5,11 +5,40 @@ import (
 	"unsafe"
 )
 
-// TestWhisperFullParamsSize verifies the Go mirror of whisper_full_params has
-// the same size as the C struct. We compute the C size by round-tripping the
-// struct through the C library: take the by-ref pointer and copy back into a
-// fresh Go struct. If the layouts disagree, fields would be misaligned and
-// modifications would not survive the round-trip.
+// TestNestedStructSizes pins the byte size of every C-mirror struct used
+// by whisper's FFI surface. The top-level params test (below) catches
+// total-size drift for whisper_full_params, but the smaller building-block
+// structs are independently load-bearing — Aheads is embedded in
+// ContextParams, TokenData is returned by every per-token accessor, and
+// VadParams / VadContextParams are passed to the VAD pipeline. Any of them
+// going stale would surface as random-looking field corruption far from
+// the type definition.
+func TestNestedStructSizes(t *testing.T) {
+	cases := []struct {
+		name string
+		got  uintptr
+		want uintptr
+	}{
+		{"Ahead", unsafe.Sizeof(Ahead{}), 8},
+		{"Aheads", unsafe.Sizeof(Aheads{}), 16},
+		{"TokenData", unsafe.Sizeof(TokenData{}), 56},
+		{"ContextParams", unsafe.Sizeof(ContextParams{}), 48},
+		{"VadParams", unsafe.Sizeof(VadParams{}), 24},
+		{"VadContextParams", unsafe.Sizeof(VadContextParams{}), 12},
+		{"GrammarElement", unsafe.Sizeof(GrammarElement{}), 8},
+	}
+	for _, c := range cases {
+		if c.got != c.want {
+			t.Errorf("%s size: got %d, want %d", c.name, c.got, c.want)
+		}
+	}
+}
+
+// TestWhisperFullParamsSize verifies the Go mirror of whisper_full_params
+// has the same size as the C struct. We compute the C size by
+// round-tripping the struct through the C library: take the by-ref pointer
+// and copy back into a fresh Go struct. If the layouts disagree, fields
+// would be misaligned and modifications would not survive the round-trip.
 func TestWhisperFullParamsSize(t *testing.T) {
 	testSetup(t)
 
