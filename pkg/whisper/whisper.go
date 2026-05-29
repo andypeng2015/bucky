@@ -73,6 +73,41 @@ const (
 
 // Opaque handles. These are pointers in C; in Go we carry them as uintptr
 // so they round-trip through the FFI boundary without retainability issues.
+//
+// # Concurrency
+//
+// A Context is NOT safe for concurrent inference calls. Upstream
+// whisper.h says verbatim:
+//
+//	The following interface is thread-safe as long as the same
+//	whisper_context is not used by multiple threads concurrently.
+//
+// Specifically, Full delegates directly to whisper_full(ctx, ...), which
+// the upstream header marks "Not thread safe for same context". The
+// reason is that whisper_context embeds a single default whisper_state
+// pointer, and every call writes through it: mel spectrogram buffer,
+// self / cross / pad KV caches, decoder hypotheses, logit buffer,
+// accumulated result segments, rolling prompt history, and timing
+// counters. There is no internal lock.
+//
+// To run transcriptions in parallel, allocate one Context per goroutine
+// via InitFromFileWithParams. The model weights are reloaded per Context,
+// so the memory cost scales linearly — plan for it.
+//
+// (The model weights and vocabulary themselves are read-only after init
+// and could in principle be shared across goroutines via a per-goroutine
+// State allocated with InitState plus FullWithState; that's the pattern
+// whisper_full_parallel uses internally. The Go bindings expose those
+// primitives, but the supported concurrency story for this package is
+// "one Context per goroutine".)
+//
+// # Read-only accessors
+//
+// Metadata accessors (NVocab, NLen, NAudioCtx, NTextCtx, IsMultilingual,
+// the token-to-string helpers, and the Model* dimension queries) read
+// only from the immutable-after-init model and vocab. They are safe to
+// call from any goroutine concurrently with each other, but must NOT
+// race with Free.
 type (
 	Context    uintptr
 	State      uintptr

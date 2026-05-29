@@ -3,6 +3,7 @@ package audio
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"math"
 	"os"
 	"testing"
@@ -91,5 +92,129 @@ func TestDecodeRoundTripJFK(t *testing.T) {
 	// jfk.wav is 11 seconds at 16 kHz → 176k samples.
 	if len(got) < 100000 || len(got) > 200000 {
 		t.Errorf("samples = %d, expected 100k–200k", len(got))
+	}
+}
+
+// TestDecodeMP3Spanish exercises the MP3 decoder against the bundled
+// 44.1 kHz stereo MP3 sample. Decode runs the full pipeline (sniff →
+// DecodeMP3 → downmix → resample to 16 kHz mono), so this test
+// transitively covers the MP3-detection branch in DecodeRawInto and the
+// looksLikeMP3 helper.
+func TestDecodeMP3Spanish(t *testing.T) {
+	path := "../../samples/spanish.mp3"
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Skipf("samples/spanish.mp3 not present: %v", err)
+	}
+
+	got, err := Decode(bytes.NewReader(data))
+	if err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+	if len(got) == 0 {
+		t.Fatal("Decode returned no samples")
+	}
+
+	// Loose sanity-check on the audio range: any non-trivial speech sample
+	// should have at least some pixels above 1% of full scale. An MP3
+	// decode that returned all zeros (decoder silently dropped frames)
+	// would slip past a "len(got) > N" check otherwise.
+	var maxAbs float32
+	for _, v := range got {
+		if v < 0 {
+			v = -v
+		}
+		if v > maxAbs {
+			maxAbs = v
+		}
+	}
+	if maxAbs < 0.01 {
+		t.Errorf("max|sample| = %v, expected speech-level audio above 0.01", maxAbs)
+	}
+}
+
+// TestDecodeRawMP3 verifies the raw (pre-downmix, pre-resample) MP3 path
+// reports a stereo stream at the source sample rate. go-mp3 always emits
+// 16-bit little-endian stereo at the source rate; if that contract ever
+// changes we want the Decode pipeline's downmix/resample stages to be
+// audited.
+func TestDecodeRawMP3(t *testing.T) {
+	path := "../../samples/spanish.mp3"
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Skipf("samples/spanish.mp3 not present: %v", err)
+	}
+
+	samples, sampleRate, channels, err := DecodeRaw(bytes.NewReader(data))
+	if err != nil {
+		t.Fatalf("DecodeRaw: %v", err)
+	}
+	if channels != 2 {
+		t.Errorf("channels = %d, want 2 (go-mp3 always emits stereo)", channels)
+	}
+	if sampleRate != 44100 {
+		t.Errorf("sampleRate = %d, want 44100 (matches spanish.mp3 source)", sampleRate)
+	}
+	if len(samples) == 0 {
+		t.Fatal("DecodeRaw returned no samples")
+	}
+}
+
+// TestDecodeFLAC exercises the FLAC decoder against the bundled jfk.flac
+// fixture (16 kHz mono, transcoded from samples/jfk.wav). Decode's sniff
+// branch routes to DecodeFLAC, so this test exercises both the format
+// detection and the FLAC decoding path.
+func TestDecodeFLAC(t *testing.T) {
+	path := "../../samples/jfk.flac"
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Skipf("samples/jfk.flac not present: %v", err)
+	}
+
+	got, err := Decode(bytes.NewReader(data))
+	if err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+	if len(got) < 100000 || len(got) > 200000 {
+		t.Errorf("samples = %d, expected 100k–200k (~11s of 16 kHz audio)", len(got))
+	}
+}
+
+// TestDecodeRawFLAC verifies the raw FLAC path reports the on-disk sample
+// rate and channel count (not the post-downmix/resample values), and that
+// samples are normalized to [-1, 1].
+func TestDecodeRawFLAC(t *testing.T) {
+	path := "../../samples/jfk.flac"
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Skipf("samples/jfk.flac not present: %v", err)
+	}
+
+	samples, sampleRate, channels, err := DecodeRaw(bytes.NewReader(data))
+	if err != nil {
+		t.Fatalf("DecodeRaw: %v", err)
+	}
+	if sampleRate != 16000 {
+		t.Errorf("sampleRate = %d, want 16000 (jfk.flac is 16 kHz mono)", sampleRate)
+	}
+	if channels != 1 {
+		t.Errorf("channels = %d, want 1", channels)
+	}
+	for i, v := range samples {
+		if v < -1 || v > 1 {
+			t.Fatalf("samples[%d] = %v, want value in [-1, 1]", i, v)
+		}
+	}
+}
+
+// TestDecodeUnsupportedFormat verifies the format-sniffing dispatch
+// surfaces a useful, well-formed error for unrecognized inputs.
+func TestDecodeUnsupportedFormat(t *testing.T) {
+	_, err := Decode(bytes.NewReader([]byte("not an audio file at all")))
+	if err == nil {
+		t.Fatal("Decode: expected error for unknown magic, got nil")
+	}
+	if !errors.Is(err, ErrUnsupportedFormat) {
+		t.Errorf("expected errors.Is(ErrUnsupportedFormat), got %v", err)
 	}
 }
