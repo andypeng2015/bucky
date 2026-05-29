@@ -8,7 +8,7 @@ This project lets you use Go for hardware accelerated local speech-to-text with 
 
 Bucky is the speech-to-text sibling of [hybridgroup/yzma](https://github.com/hybridgroup/yzma) (which binds llama.cpp). The end goal is to give [Kronk](https://github.com/ardanlabs/kronk) a native, OpenAI-compatible `POST /v1/audio/transcriptions` endpoint without the CGo toolchain.
 
-> Bucky is the squirrel from *The Emperor's New Groove* — he speaks in
+> Bucky is the squirrel from _The Emperor's New Groove_ — he speaks in
 > squeaks/whispers. Naming a Whisper binding after him is just good taste.
 
 To install bucky, fetch the whisper.cpp shared libraries, and transcribe the bundled JFK sample:
@@ -38,9 +38,9 @@ Read [INSTALL.md](./INSTALL.md) for per-OS install notes and [MODELS.md](./MODEL
 
 Sometimes there are breaking changes to whisper.cpp that require an update to bucky. Here are the known compatible versions:
 
-| whisper.cpp | bucky  |
-| ----------- | ------ |
-| v1.8.4      | 0.1.x  |
+| whisper.cpp | bucky |
+| ----------- | ----- |
+| v1.8.5      | 0.1.x |
 
 The core FFI binding (model loading, `whisper_full`, segments + tokens, VAD, state, language, bench helpers), audio decoding (WAV/MP3/FLAC), CLI (`install`, `system`, `model get|info|list`, `whisper transcribe`), and examples (`hello`, `transcribe`, `translate`, `segments`, `words`, `streaming`) have all landed. Kronk integration (an OpenAI-compatible `POST /v1/audio/transcriptions` endpoint) lives in the [kronk](https://github.com/ardanlabs/kronk) repo.
 
@@ -108,7 +108,7 @@ The architecture of bucky mirrors yzma file-for-file so anyone who knows yzma ca
                           │
                           ▼
               libwhisper.{dylib|so|dll}
-                  (whisper.cpp v1.8.4)
+                  (whisper.cpp v1.8.5)
 ```
 
 ## Models
@@ -130,11 +130,11 @@ See [MODELS.md](./MODELS.md) for the recommended set with size / speed / quality
 
 Bucky uses the prebuilt whisper.cpp release artifacts where they exist; Linux artifacts come from the [ardanlabs/bucky-builder](https://github.com/ardanlabs/bucky-builder) companion repo (whisper.cpp upstream publishes no Linux release).
 
-| OS      | CPU          | GPU                | Source                                                |
-| ------- | ------------ | ------------------ | ----------------------------------------------------- |
-| Linux   | amd64, arm64 | CUDA 12.9, Vulkan  | `whisper-vX.Y.Z-bin-ubuntu-{cpu,cuda,vulkan}-{x64,arm64}.tar.gz` (bucky-builder) |
-| macOS   | arm64, amd64 | Metal              | `whisper-vX.Y.Z-xcframework.zip` (upstream)           |
-| Windows | amd64        | CPU, CUDA 12       | `whisper-bin-x64.zip` / `-cublas-…` (upstream)        |
+| OS      | CPU          | GPU               | Source                                                                           |
+| ------- | ------------ | ----------------- | -------------------------------------------------------------------------------- |
+| Linux   | amd64, arm64 | CUDA 12.9, Vulkan | `whisper-vX.Y.Z-bin-ubuntu-{cpu,cuda,vulkan}-{x64,arm64}.tar.gz` (bucky-builder) |
+| macOS   | arm64, amd64 | Metal             | `whisper-vX.Y.Z-xcframework.zip` (upstream)                                      |
+| Windows | amd64        | CPU, CUDA 12      | `whisper-bin-x64.zip` / `-cublas-…` (upstream)                                   |
 
 Whenever there is a new release of whisper.cpp, the FFI struct mirrors and `pkg/download` matrix may need a refresh. The pinned version is captured in `pkg/download/`.
 

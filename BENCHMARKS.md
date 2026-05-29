@@ -2,7 +2,7 @@
 
 Performance numbers for `pkg/whisper`. Recorded on Apple M5 Max
 (darwin/arm64) with the Metal backend baked into the upstream
-`whisper-v1.8.4-xcframework.zip`. The Go benchmark and the upstream
+`whisper-v1.8.5-xcframework.zip`. The Go benchmark and the upstream
 ggml/memcpy helpers all run against the same `lib/libwhisper.dylib`.
 
 Reproduce with:
@@ -16,7 +16,7 @@ make bench                          # BUCKY_BENCH_MODEL=ggml-tiny by default
 ## Methodology
 
 - **Sample**: `samples/jfk.wav` — 11.0 s, 16 kHz mono 16-bit PCM (vendored
-  from upstream whisper.cpp v1.8.4)
+  from upstream whisper.cpp v1.8.5)
 - **Driver**: `BenchmarkFullJFK` in `pkg/whisper/benchmark_test.go`. Greedy
   sampling, single-segment, no timestamp printing. One untimed warm-up
   iteration before `b.ResetTimer()` so Metal JIT/library init does not
@@ -28,9 +28,9 @@ make bench                          # BUCKY_BENCH_MODEL=ggml-tiny by default
 
 ## End-to-end transcription (greedy)
 
-| Model | Backend | b.N | ns/op | audio_s | RTF |
-|---|---|---:|---:|---:|---:|
-| ggml-tiny | Metal | 10 | 27,960,167 | 11.00 | 0.0025 |
+| Model     | Backend | b.N |      ns/op | audio_s |    RTF |
+| --------- | ------- | --: | ---------: | ------: | -----: |
+| ggml-tiny | Metal   |  10 | 27,960,167 |   11.00 | 0.0025 |
 
 Run command:
 
@@ -65,8 +65,8 @@ memcpy:  167.28 GB/s ( 4 thread)
 
 ### `whisper_bench_ggml_mul_mat_str(4)` — selected sizes
 
-| Size | Q4_0 | Q8_0 | F16 | F32 |
-|---|---:|---:|---:|---:|
+| Size      |         Q4_0 |         Q8_0 |          F16 |          F32 |
+| --------- | -----------: | -----------: | -----------: | -----------: |
 | 256x256   | 112.7 GFLOPS | 229.1 GFLOPS | 201.1 GFLOPS | 138.0 GFLOPS |
 | 512x512   | 133.8 GFLOPS | 370.7 GFLOPS | 306.7 GFLOPS | 175.6 GFLOPS |
 | 1024x1024 | 138.1 GFLOPS | 428.2 GFLOPS | 359.3 GFLOPS | 183.0 GFLOPS |
@@ -85,12 +85,12 @@ process many clips and want to avoid per-call allocations. The bundled
 `samples/jfk.wav` (11.0 s, 16 kHz mono 16-bit PCM, ~352 KB on disk) drives
 the benchmarks.
 
-| Benchmark | ns/op | B/op | allocs/op | vs allocating |
-|---|---:|---:|---:|---:|
-| `BenchmarkDecodeWAV` | 158,812 | 1,056,910 | 9 | baseline |
-| `BenchmarkDecodeWAVInto` | 129,963 | 352,393 | 8 | **-18% time, -67% mem** |
-| `BenchmarkDecode` | 160,447 | 1,057,029 | 13 | baseline |
-| `BenchmarkDecodeInto` | 131,283 | 352,513 | 12 | **-18% time, -67% mem** |
+| Benchmark                |   ns/op |      B/op | allocs/op |           vs allocating |
+| ------------------------ | ------: | --------: | --------: | ----------------------: |
+| `BenchmarkDecodeWAV`     | 158,812 | 1,056,910 |         9 |                baseline |
+| `BenchmarkDecodeWAVInto` | 129,963 |   352,393 |         8 | **-18% time, -67% mem** |
+| `BenchmarkDecode`        | 160,447 | 1,057,029 |        13 |                baseline |
+| `BenchmarkDecodeInto`    | 131,283 |   352,513 |        12 | **-18% time, -67% mem** |
 
 The `Into` variants eliminate the per-call `[]float32` output allocation
 (~705 KB for an 11 s clip). The remaining 352 KB is the internal `[]byte`

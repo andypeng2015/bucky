@@ -8,11 +8,11 @@ disk before any FFI call will succeed.
 Set `BUCKY_LIB` (or pass `-lib <path>`) to the directory that contains the
 shared library. The expected filenames are:
 
-| OS | Filename |
-|---|---|
-| linux / freebsd | `libwhisper.so` |
-| darwin | `libwhisper.dylib` |
-| windows | `whisper.dll` (plus `ggml*.dll` siblings) |
+| OS              | Filename                                  |
+| --------------- | ----------------------------------------- |
+| linux / freebsd | `libwhisper.so`                           |
+| darwin          | `libwhisper.dylib`                        |
+| windows         | `whisper.dll` (plus `ggml*.dll` siblings) |
 
 ## macOS (arm64 / amd64)
 
@@ -66,11 +66,11 @@ companion repo (whisper.cpp upstream publishes no Linux release artifact
 at all). The builder re-runs hourly against new whisper.cpp tags and
 publishes six artifacts per release:
 
-| Backend | amd64 | arm64 |
-|---|---|---|
-| CPU      | `whisper-vX.Y.Z-bin-ubuntu-cpu-x64.tar.gz`    | `whisper-vX.Y.Z-bin-ubuntu-cpu-arm64.tar.gz`    |
-| CUDA 12.9| `whisper-vX.Y.Z-bin-ubuntu-cuda-x64.tar.gz`   | `whisper-vX.Y.Z-bin-ubuntu-cuda-arm64.tar.gz`   |
-| Vulkan   | `whisper-vX.Y.Z-bin-ubuntu-vulkan-x64.tar.gz` | `whisper-vX.Y.Z-bin-ubuntu-vulkan-arm64.tar.gz` |
+| Backend   | amd64                                         | arm64                                           |
+| --------- | --------------------------------------------- | ----------------------------------------------- |
+| CPU       | `whisper-vX.Y.Z-bin-ubuntu-cpu-x64.tar.gz`    | `whisper-vX.Y.Z-bin-ubuntu-cpu-arm64.tar.gz`    |
+| CUDA 12.9 | `whisper-vX.Y.Z-bin-ubuntu-cuda-x64.tar.gz`   | `whisper-vX.Y.Z-bin-ubuntu-cuda-arm64.tar.gz`   |
+| Vulkan    | `whisper-vX.Y.Z-bin-ubuntu-vulkan-x64.tar.gz` | `whisper-vX.Y.Z-bin-ubuntu-vulkan-arm64.tar.gz` |
 
 `bucky install` auto-detects CUDA via `nvidia-smi` and downloads the
 matching artifact. Pass `-p vulkan` to opt into the Vulkan build, or
@@ -87,7 +87,7 @@ If you'd rather build whisper.cpp yourself:
 ```
 git clone https://github.com/ggml-org/whisper.cpp.git
 cd whisper.cpp
-git checkout v1.8.4
+git checkout v1.8.5
 cmake -B build -DBUILD_SHARED_LIBS=ON
 cmake --build build --config Release -j$(nproc)
 mkdir -p ../bucky/lib
